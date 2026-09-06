@@ -28,7 +28,7 @@ Intra AI uses a dual-database architecture:
 > **Live Path Boundary**:
 > The Knowledge Graph does **NOT** determine live interview routing.
 > - **M1 Interview Intelligence** analyzes candidate answers turn-by-turn.
-> - **Meta-Orchestrator / Nemotron** determines agent handoffs and interview routing.
+> - **Meta-Orchestrator** determines agent handoffs and interview routing.
 > - **Knowledge Graph** persistently captures cumulative candidate context across interview turns and rounds for cross-round evaluation and deep context retrieval.
 
 ---
@@ -216,7 +216,7 @@ CustomLLMAdapter.process_turn_async()
        │
        ├──> [3] Context Mutation (Updates InterviewAIContext in-memory state)
        │
-       ├──> [4] Meta-Orchestrator / Nemotron (Determines NextAction: question/switch)
+       ├──> [4] Meta-Orchestrator (Determines NextAction: question/switch/complete)
        │
        └──> [5] KnowledgeGraphPersistenceService (Side-Effect Memory Projection)
                    │
@@ -377,6 +377,5 @@ In **Task 5**, the read side of the Knowledge Graph is integrated into the unifi
 5. **Bidirectional Handoffs**: During agent transitions (Alex ↔ Jordan), `PersistentCandidateMemory` is carried forward seamlessly so the receiving agent never begins from an empty state.
 
 For comprehensive architectural specifications, model schemas, and prompt budgeting details, see [`docs/AGENT_CONTEXT.md`](file:///Users/user/Desktop/intra_AI/docs/AGENT_CONTEXT.md).
-
 
 

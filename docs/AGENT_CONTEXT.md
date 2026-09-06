@@ -2,13 +2,13 @@
 
 ## 1. Overview & Purpose
 
-In Intra AI, candidate interviews are conducted by specialized agents (e.g. Alex for Technical Systems, Jordan for Product & Behavioral) coordinated by the Meta-Orchestrator (`Nemotron`).
+In Intra AI, candidate interviews are conducted by specialized agents (for example, Alex for technical systems and Jordan for product/customer reasoning) coordinated by the Meta-Orchestrator.
 
 Prior to Task 5, agent turns operated primarily on ephemeral session state (`InterviewAIContext`) without access to the candidate's verified CV claims, the job requirements/benchmarks, or persistent cross-round/cross-agent findings stored in the Knowledge Graph.
 
 **Task 5 introduces the Unified Agent Turn Context layer (`AgentTurnContext`)**:
 - A deterministic, typed, per-turn snapshot composed from all authoritative data sources.
-- Injected into the Meta-Orchestrator (`Nemotron`) for intelligent routing and handoff decisions.
+- Injected into the Meta-Orchestrator for intelligent routing and handoff decisions.
 - Formatted with strict prompt-injection defenses and token/character budget limits (`MAX_PROMPT_CHARS = 12000`).
 - Provides complete context inheritance during bidirectional handoffs (Alex ↔ Jordan).
 
@@ -45,7 +45,7 @@ Prior to Task 5, agent turns operated primarily on ephemeral session state (`Int
               ▼                                         ▼
    ┌───────────────────────┐                 ┌────────────────────┐
    │   Meta-Orchestrator   │                 │ Active Interviewer │
-   │   (Nemotron Prompt)   │                 │ (Agora Voice Path) │
+   │   (Routing Prompt)    │                 │ (Agora Voice Path) │
    └───────────────────────┘                 └────────────────────┘
 ```
 
@@ -138,17 +138,17 @@ When the Meta-Orchestrator switches agents (`ActionType.SWITCH_AGENT`), the rece
 
 ---
 
-## 6. Meta-Orchestrator & Nemotron Integration
+## 6. Meta-Orchestrator Integration
 
 The Meta-Orchestrator (`app.orchestrator.service.MetaOrchestrator` and `app.orchestrator.graph`) ingests `AgentTurnContext`:
 
 1. `decide(..., turn_context=turn_context)` accepts the optional snapshot.
-2. `build_nemotron_routing_messages(..., turn_context=turn_context)` formats structured context into Nemotron's JSON prompt:
+2. `app.orchestrator.prompts` formats the structured context into the configured routing model's JSON prompt:
    - `candidate_profile`: Summary of skills, experience, and projects.
    - `job_context`: Role requirements, benchmarks, target competencies.
    - `persistent_interview_memory`: Verified evidence from prior rounds and agents.
 3. **Sole Routing Authority**:
-   Nemotron evaluates this unified context and decides the canonical `NextAction`:
+   The configured routing model evaluates this unified context and proposes the canonical `NextAction`:
    - `ASK_QUESTION`: Active agent continues probing the current or next competency.
    - `SWITCH_AGENT`: Active agent hands off to the target agent with explicit rationale.
    - `COMPLETE`: All competencies covered or interview conclusion reached.
@@ -162,4 +162,4 @@ The implementation is verified by 23 automated tests in `backend/tests/test_agen
 - **Tests 7–11**: Competency-targeted retrieval, multi-round retention, cross-agent sharing, Alex → Jordan handoff, Jordan → Alex return handoff.
 - **Tests 12–16**: Provenance preservation, resume vs interview fact separation, candidate tenant isolation, empty memory fallback, context budget limits.
 - **Tests 17–21**: Deterministic serialization, prompt injection safety, current answer inclusion, M1 analysis integration, read-only guarantees.
-- **Tests 22–23**: Meta-Orchestrator LangGraph integration, Nemotron routing message delivery.
+- **Tests 22–23**: Meta-Orchestrator LangGraph integration and routing-message delivery.

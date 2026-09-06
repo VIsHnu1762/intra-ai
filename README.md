@@ -1,276 +1,339 @@
-<h1 align="center">Intra AI</h1>
+# Intra AI
 
-<p align="center">
-  <strong>AI-Powered Interview & Skill Assessment Platform</strong>
-</p>
+Intra AI is an AI-assisted recruitment and interview platform. Recruiters can create jobs, review parsed resumes, manage applications, schedule reusable interview templates, run immediate interview invitations, and review evidence-backed reports. Candidates can apply for roles, track applications, attend Agora voice interviews, review saved performance feedback, and practise with Taylor.
 
-<p align="center">
-  Automate your entire hiring pipeline — from resume screening to multi-round AI voice interviews — and make data-driven hiring decisions in minutes, not weeks.
-</p>
+The repository contains a Next.js frontend and a FastAPI backend. Supabase provides the application system of record and private resume storage. Neo4j AuraDB stores the persistent candidate knowledge graph. Agora Conversational AI runs realtime voice sessions. Intra AI's Custom LLM Adapter keeps answer analysis, context construction, adaptive routing, and agent handoffs in the application backend.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js" />
-  <img src="https://img.shields.io/badge/FastAPI-Python_3.11-009688?logo=fastapi" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss" />
-  <img src="https://img.shields.io/badge/OpenAI-Realtime_API-412991?logo=openai" />
-  <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase" />
-  <img src="https://img.shields.io/badge/License-MIT-yellow" />
-</p>
+## Current product status
 
----
+| Area | Status | Current behavior |
+| --- | --- | --- |
+| Jobs and applications | Implemented | Recruiters create and publish jobs; candidates submit one application per job. |
+| Resume ingestion | Implemented | PDF or text content is extracted, structured through the selected M1 transport, and persisted in Supabase. A bounded local extractor is used when model parsing fails. |
+| Eligibility | Implemented | Deterministic skills, experience, education, and project/certification scoring updates application status. Recruiters can override workflow status. |
+| Scheduling | Implemented | Recruiters create slots, schedule or reschedule interviews, use reusable templates, and issue ten-minute instant interview invitations. |
+| Official voice interview | Implemented | The candidate UI joins Agora RTC/RTM sessions with registered interviewer agents and plays their published audio. |
+| Adaptive multi-agent interview | Implemented | M1 evaluates answers; the Meta-Orchestrator selects questions, difficulty, handoffs, or completion across registered agents. |
+| Candidate memory | Implemented | Current-session context and Neo4j evidence memory are supplied to subsequent turns and handoffs. |
+| Recruiter report | Implemented | Completed interviews can produce a saved report from evaluated evidence, with coverage, per-round results, strengths, improvements, and recommendation. |
+| Candidate feedback | Implemented | Candidates receive a persisted 1–5 rating and three overall feedback lines when report generation succeeds. |
+| Report PDF | Partial | The API can redirect to an existing `pdf_url`; current report generation does not create a new PDF artifact. |
+| Morgan | Implemented with configuration | Recruiter voice assistant for scoped HR data, reviewed database actions, email/calendar/Slack workflows, and interview scheduling. |
+| Taylor | Implemented with configuration | Candidate practice assistant with CV/job context and end-of-practice coaching. Taylor feedback does not affect application status or official scores. |
 
-## What is Intra AI?
+## System architecture
 
-Current assistant workflows: [Morgan HR actions and interview templates](docs/MORGAN_HR_WORKFLOWS.md) · [Taylor native practice](docs/TAYLOR_NATIVE_PRACTICE.md). These delivery notes include the tested behavior and current integration limits.
+```mermaid
+flowchart TD
+    C[Candidate] --> F[Next.js candidate interview UI]
+    F <-->|RTC audio and RTM events| A[Agora Conversational AI]
+    A -->|OpenAI-compatible turn request| L[FastAPI Custom LLM Adapter]
+    L --> M[M1 Interview Intelligence]
+    M --> IC[InterviewAIContext]
+    IC --> AC[AgentTurnContext]
+    AC --> O[LangGraph Meta-Orchestrator]
+    O --> N{NextAction}
+    N -->|ASK_QUESTION| P[Current interviewer persona]
+    N -->|SWITCH_AGENT| H[Agora agent handoff]
+    N -->|COMPLETE| X[Interview completion]
+    P --> A
+    H --> A
 
-Intra AI replaces the manual interview process with an AI-powered pipeline:
-
-```
-Candidate Applies → Resume Parsed (GPT-4o) → Eligibility Scored
-  → Interview Scheduled → AI Voice Interview (4 Rounds)
-    → Per-Answer Evaluation (5 Dimensions) → Assessment Report
-      → Hire/No-Hire Recommendation + Salary Guidance
-```
-
-**Who is this for?**
-- Hiring platforms automating first-round interviews
-- Startups screening 100s of candidates without a dedicated HR team
-- Universities and bootcamps running placement assessments
-- Staffing agencies scaling candidate evaluation
-- Enterprises standardizing interview quality across teams
-
----
-
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| **Resume Intelligence** | GPT-4o parses resumes and scores candidates against job requirements across skills, experience, and education |
-| **Multi-Round AI Interviews** | Introduction, Technical, Behavioral, and HR rounds — fully automated and customizable per role |
-| **Voice AI Interviewer** | Natural speech-to-speech conversation powered by OpenAI Realtime API |
-| **5-Dimension Evaluation** | Each answer scored on relevance (25%), depth (25%), accuracy (20%), communication (20%), confidence (10%) |
-| **Smart Proctoring** | Client-side face detection (MediaPipe) monitors presence and integrity throughout interviews |
-| **Assessment Reports** | PDF reports with per-skill breakdowns, round scores, strengths, weaknesses, and hiring recommendations |
-| **Salary Guidance** | AI-recommended salary range based on performance, experience, and market benchmarks |
-| **Candidate Portal** | Self-service portal with application tracking, interview scheduling, and report access |
-| **Admin Dashboard** | Real-time hiring pipeline, interview calendar, candidate Kanban, and analytics |
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js 15, TypeScript, Tailwind CSS v4, Radix UI |
-| **Backend** | Python 3.11+, FastAPI, Pydantic v2 |
-| **Database** | Supabase (PostgreSQL + pgvector) |
-| **Cache** | Redis |
-| **AI Voice** | OpenAI Realtime API (Speech-to-Speech) |
-| **AI Evaluation** | GPT-4o (resume parsing, answer scoring, report generation) |
-| **Proctoring** | MediaPipe (face detection — client-side) |
-| **Auth** | Supabase Auth + JWT, RBAC |
-| **Storage** | AWS S3 (resumes, reports) |
-| **Deployment** | Docker + AWS ECS Fargate |
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    FRONTEND (Next.js 15)                 │
-│  Landing │ Auth │ Jobs │ Admin Dashboard │ Interview Room│
-│  Candidate Portal │ Reports │ Settings │ Scheduling      │
-└────────────────────────┬────────────────────────────────┘
-                         │ REST API
-┌────────────────────────┴────────────────────────────────┐
-│                    BACKEND (FastAPI)                      │
-│  ┌─────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │
-│  │  Auth   │  │   Jobs   │  │Candidates│  │Interviews│ │
-│  │ Service │  │  Service │  │ Service  │  │ Service  │ │
-│  └────┬────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘ │
-│       │            │             │              │        │
-│  ┌────┴────┐  ┌────┴─────┐  ┌───┴──────┐  ┌───┴──────┐│
-│  │ Resume  │  │Eligibility│  │Evaluation│  │  Report  ││
-│  │ Parser  │  │  Scorer   │  │  Engine  │  │Generator ││
-│  └─────────┘  └──────────┘  └──────────┘  └──────────┘ │
-└────────┬───────────┬──────────────┬─────────────┬───────┘
-         │           │              │             │
-    ┌────┴───┐  ┌────┴────┐   ┌────┴────┐  ┌────┴────┐
-    │Supabase│  │  Redis  │   │ OpenAI  │  │  AWS S3 │
-    │  (DB)  │  │ (Cache) │   │Realtime │  │(Storage)│
-    └────────┘  └─────────┘   └─────────┘  └─────────┘
+    S[(Supabase / PostgreSQL)] --> AC
+    KG[(Neo4j AuraDB)] --> AC
+    M -->|evidence projection| KG
+    X --> R[Evidence-backed report generation]
+    S <--> R
 ```
 
----
+Supabase stores users, recruiter-owned jobs, candidates, applications, parsed resumes, interview configuration, transcripts/evaluations, and reports. Neo4j is a candidate-scoped memory projection used for evidence retrieval; it is not the business system of record and does not decide interview routing.
 
-## Interview Flow
+## Realtime interview pipeline
 
-Intra AI conducts **4-round interviews**, each with adaptive questioning:
+1. The candidate opens the preparation page and requests a server-created interview session.
+2. The backend resolves the scheduled interview, candidate/CV, job description, configured rounds, and allowed agents.
+3. The browser joins the generated Agora channel with short-lived RTC/RTM credentials and publishes the candidate microphone.
+4. Agora runs the configured conversational session. The checked-in Alex and Jordan mappings select Deepgram `nova-3` ASR, Agora turn detection/VAD, and OpenAI `tts-1` voices through Agora's managed pipeline configuration.
+5. Agora calls `POST /api/v1/chat/completions`. The same router is also mounted at `POST /v1/chat/completions`. Streaming requests receive OpenAI-compatible Server-Sent Events.
+6. The Custom LLM Adapter identifies the session and active persona, handles control/clarification turns, invokes M1 for substantive answers, updates `InterviewAIContext`, builds `AgentTurnContext`, and asks the Meta-Orchestrator for a `NextAction`.
+7. The response or handoff text is returned to Agora. Agora generates and publishes speech; the browser subscribes to and plays the allowed agent audio track.
+8. Normalized transcript, question, answer, analysis, and evidence records are persisted. Interview completion updates Supabase and requests report generation.
 
-| Round | Duration | What's Assessed |
-|-------|----------|----------------|
-| **1. Introduction** | 5-7 min | Background, motivation, career goals |
-| **2. Technical** | 15-20 min | Skills from resume matched against JD — adaptive difficulty |
-| **3. Behavioral** | 10-15 min | STAR-method: leadership, teamwork, conflict resolution |
-| **4. HR & Culture** | 5-10 min | Salary expectations, availability, culture fit |
+Agora owns the realtime media and managed speech path. Intra AI does not implement an OpenAI Realtime WebSocket relay.
 
-### Evaluation Rubric (5 Dimensions)
+## Interview intelligence and routing
 
-| Dimension | Weight | What It Measures |
-|-----------|--------|-----------------|
-| Relevance | 25% | How well the answer addresses the question |
-| Depth | 25% | Level of detail and thoroughness |
-| Accuracy | 20% | Technical correctness |
-| Communication | 20% | Clarity, structure, articulation |
-| Confidence | 10% | Delivery, poise, conviction |
+### M1 Interview Intelligence
 
----
+M1 evaluates the candidate's answer. Its typed `AnswerAnalysis` includes:
 
-## Project Structure
+- overall performance and confidence;
+- vague-answer detection and missing information;
+- contradiction detection;
+- evidence items with answer, round, competency, and source-agent provenance;
+- competency findings; and
+- a recommended follow-up.
 
-```
+M1 does not select the next agent or make a hiring decision.
+
+### Meta-Orchestrator
+
+The LangGraph Meta-Orchestrator combines M1 output with deterministic guardrails and the unified turn context. It controls:
+
+- adaptive question selection and difficulty;
+- competency coverage;
+- clarification and contradiction probes;
+- `ASK_QUESTION`, `SWITCH_AGENT`, and `COMPLETE` actions;
+- target-agent selection from the registry; and
+- an explainable rationale and handoff context.
+
+Agent selection is registry-based. It is not a hardcoded Alex-to-Jordan transition. Invalid model output, invalid targets, premature completion, and provider failures fall back to deterministic policy.
+
+## Interview configurations
+
+Rounds and agents are independent configuration dimensions.
+
+| Mode | Configuration |
+| --- | --- |
+| 1 × 1 | One registered agent in one round. |
+| 1 × N | One agent participates across several configured rounds. |
+| N × 1 | Several registered agents are available within one round and orchestration can hand off between them. |
+| N × N | Several rounds can each configure one or more agents. |
+
+Multi-round does not imply multi-agent, and multi-agent does not imply multi-round. Reusable interview templates snapshot enabled rounds, duration, focus, and ordered agent IDs into scheduled interviews. Current-session state and persistent evidence continue across round and agent transitions.
+
+## Registered interview agents
+
+The default registry contains two official interview agents:
+
+| Agent | Role | Focus | Difficulty | Actions |
+| --- | --- | --- | --- | --- |
+| Alex | Technical Manager | System design, architecture, coding/problem solving, scalability, debugging, reliability, security, performance, testing, and deployment | Easy–Expert | Ask, switch, complete |
+| Jordan | Senior Product Manager | Product sense, customer understanding and impact, prioritization, strategy, trade-offs, metrics, validation, and stakeholder communication | Easy–Expert | Ask, switch, complete |
+
+Each `AgentProfile` defines identity, focal competencies, questioning style, instructions, difficulty bounds, allowed actions, and extension metadata. `AgoraAgentMapping` binds the logical profile to its Agora project/pipeline, RTC UID, speech configuration, greeting, and TTS voice.
+
+Morgan and Taylor are separate auxiliary assistants, configured through a separate Agora application/project:
+
+- **Morgan** is the recruiter operations assistant. The current local mode is Agora-managed `gpt-4.1-mini`. Server-side tools enforce recruiter identity and workspace ownership, expose reviewed HR actions, and use the configured Composio connection for Gmail, Google Calendar, and Slack where available.
+- **Taylor** is the candidate practice assistant. It uses the model saved in Agora Agent Studio; that model identifier is not stored in this repository. CV and target-role context are loaded for the practice session, and Taylor has no HR/MCP tools. Finishing practice produces bounded, indicative coaching from recorded practice answers.
+
+## Context and candidate memory
+
+`InterviewAIContext` is the authoritative short-term state for the current interview. It tracks the interview and candidate IDs, active round and agent, difficulty, evaluated and missing competencies, accumulated evidence, unresolved questions, contradictions, structured question history, and orchestration metadata.
+
+`AgentTurnContext` is an isolated snapshot built for a turn. It combines:
+
+- candidate profile and parsed CV facts;
+- job description, required skills, and interview configuration;
+- bounded persistent candidate memory;
+- the current `InterviewAIContext` snapshot;
+- active and target agent profiles;
+- the current question, answer, and M1 analysis; and
+- handoff metadata when an agent changes.
+
+Neo4j stores typed `Candidate`, `InterviewRound`, `Question`, `Answer`, `Evidence`, `Competency`, `Project`, `Skill`, and `Technology` nodes. Relationships capture participation, questions/answers, evidence provenance, competency support, project skills, and technologies. Candidate memory retrieval returns bounded evidence, competency summaries, projects, skills, technologies, interview history, source agents, and source rounds.
+
+## Post-interview reporting
+
+For a persisted UUID interview, completion marks the interview and application completed and requests report generation. Recruiters can also request or retry generation through `POST /api/v1/interviews/{interview_id}/report/generate`.
+
+The report service:
+
+1. collects saved interview configuration, answers, evaluations, transcripts, and graph-backed recovery evidence;
+2. requires at least two evaluated answers and validates identity/provenance coverage;
+3. computes the overall score from the saved evaluation evidence;
+4. maps the score to a 1–5 candidate rating with `round(1 + overall_score / 25, 1)`;
+5. asks AICredits GPT-5 Nano to format the recruiter narrative without rescoring;
+6. asks AICredits Gemini 2.5 Flash-Lite for two candidate-facing coaching sentences;
+7. prepends the deterministic performance-band sentence, producing three candidate feedback lines; and
+8. atomically persists the report, narrative, coverage, rating, feedback, and generation state in Supabase.
+
+Recruiter responses include evidence-oriented analysis and recommendations. Candidate endpoints return only candidate-safe rating and feedback. A report is never presented as ready when evidence or provider output fails validation.
+
+## Current provider matrix
+
+The table reflects the checked-in configuration defaults plus the selected non-secret values in the current local environment. Provider compatibility classes remain in source for tests and explicit configuration, but they are not the active path described here.
+
+| Component | Provider | Current model/configuration | Purpose |
+| --- | --- | --- | --- |
+| Resume parsing | AICredits | `google/gemini-3.1-flash-lite` | Structured CV extraction, with local fallback |
+| M1 Interview Intelligence | AICredits | `google/gemini-3.1-flash-lite` | Answer analysis and evidence extraction |
+| Meta-Orchestrator | AICredits | `google/gemini-3.1-flash-lite` | Adaptive routing and next-action proposal |
+| Recruiter report narrative | AICredits | `openai/gpt-5-nano` | Evidence-grounded narrative formatting |
+| Candidate feedback | AICredits | `google/gemini-2.5-flash-lite` | Overall candidate coaching |
+| Official interview voice | Agora Conversational AI | Deepgram `nova-3` ASR; OpenAI `tts-1` voice nodes; Agora VAD/RTC/RTM | Realtime speech lifecycle and transport |
+| Morgan | Agora managed model | `gpt-4.1-mini` in the current local mode | Recruiter voice assistance and tool use |
+| Taylor | Agora Agent Studio | Saved Studio model; identifier external to the repository | Candidate practice conversation and coaching |
+
+## Technology stack
+
+| Layer | Current implementation |
+| --- | --- |
+| Frontend | Next.js 16.1, React 19, TypeScript, Tailwind CSS 4, Radix UI, TanStack Query, Agora RTC and RTM browser SDKs |
+| Backend | Python 3.11, FastAPI, Pydantic 2, HTTPX, LangGraph, structured logging |
+| Application data | Supabase/PostgreSQL through the Supabase client and PostgREST APIs |
+| Resume objects | Private Supabase Storage by default; optional S3 compatibility code remains but is not required for the current deployment |
+| Candidate memory | Neo4j AuraDB |
+| Auxiliary state | Redis for Morgan/Taylor sessions, confirmation state, and expiry |
+| Voice | Agora Conversational AI and Agent Studio |
+| Realtime reasoning/reporting | AICredits OpenAI-compatible API with explicit model/key slots |
+| Connected HR tools | Controlled Composio Tool Router integration for Morgan |
+| Email | Resend when configured |
+| Packaging | Dockerfiles for frontend/backend and Docker Compose for local orchestration |
+
+## Repository structure
+
+```text
 intra-ai/
-├── frontend/                 # Next.js 15 + Tailwind v4
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── (auth)/       # Login, Signup
-│   │   │   ├── (public)/     # Jobs listing, Job detail, Apply
-│   │   │   ├── (candidate)/  # Portal, Scheduling, Interview room
-│   │   │   └── admin/        # Dashboard, Jobs, Candidates, Reports, Settings
-│   │   ├── components/
-│   │   │   └── ui/           # 16 reusable components
-│   │   └── lib/              # Utils, API client
-│   └── package.json
-│
-├── backend/                  # FastAPI + Python 3.11
+├── backend/
 │   ├── app/
-│   │   ├── routes/           # 9 route modules
-│   │   ├── services/         # 11 business logic services
-│   │   ├── repositories/     # 5 data access repositories
-│   │   ├── schemas/          # 8 Pydantic schema modules
-│   │   ├── integrations/     # Supabase, Redis, OpenAI, S3, Email
-│   │   └── core/             # Config, security, middleware, exceptions
-│   ├── requirements.txt
+│   │   ├── agents/                  # AgentProfile registry and Agora mappings
+│   │   ├── agent_context/           # Unified per-turn CV/JD/memory context
+│   │   ├── custom_llm/              # Agora-compatible completion adapter
+│   │   ├── interview_context/       # Short-term InterviewAIContext
+│   │   ├── interview_intelligence/  # M1 analysis and provider selection
+│   │   ├── knowledge_graph/         # Neo4j schema, persistence, retrieval
+│   │   ├── orchestrator/            # LangGraph routing and policies
+│   │   ├── routes/                  # ATS, interview, scheduling, report APIs
+│   │   ├── services/                # Application business logic
+│   │   ├── sessions/                # Official interview session lifecycle
+│   │   ├── transcript/              # Normalized transcript persistence
+│   │   └── voice/                   # Morgan/Taylor auxiliary voice services
+│   ├── tests/
+│   ├── .env.example
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── src/app/                     # Public, candidate, recruiter, training routes
+│   ├── src/components/
+│   ├── src/hooks/
+│   ├── src/lib/                     # API clients and voice/report helpers
+│   ├── tests/
+│   ├── .env.example
 │   └── Dockerfile
-│
-├── docs/
-│   └── PRD.md                # Product Requirements Document
-│
+├── docker/                          # Local Postgres seed and PostgREST gateway
+├── docs/                            # Current guides and dated delivery records
 ├── docker-compose.yml
-├── .env.example
-└── CLAUDE.md                 # AI coding context
+└── seed_interview.sh
 ```
 
-### Frontend Routes (24 pages)
-
-| Section | Routes |
-|---------|--------|
-| **Landing** | `/` — Hero, stats, how-it-works, features, pricing, CTA |
-| **Auth** | `/login`, `/signup` — With role toggle (candidate/recruiter) |
-| **Public Jobs** | `/jobs`, `/jobs/[id]`, `/jobs/[id]/apply` — Search, filter, 3-step apply |
-| **Admin** | `/admin/dashboard`, `/admin/jobs`, `/admin/jobs/new`, `/admin/candidates`, `/admin/interviews`, `/admin/reports`, `/admin/reports/[id]`, `/admin/settings` |
-| **Candidate** | `/portal` — Application tracker with pipeline stepper |
-| **Scheduling** | `/schedule/[token]` — 14-day calendar + time slots |
-| **Interview** | `/interview/[token]`, `/interview/[token]/prep`, `/interview/[token]/done`, `/interview/[token]/report` |
-
-### Backend Modules (52 files)
-
-| Layer | Modules |
-|-------|---------|
-| **Routes** | auth, jobs, candidates, applications, interviews, scheduling, evaluation, reports, health |
-| **Services** | auth, job, application, eligibility, evaluation, interview, notification, question, report, resume, scheduling |
-| **Repositories** | user, job, candidate, application, interview |
-| **Schemas** | auth, jobs, candidates, applications, interviews, evaluation, reports, common |
-| **Integrations** | supabase, redis, openai, s3, email |
-
----
-
-## Getting Started
+## Local setup
 
 ### Prerequisites
 
-- Node.js 18+
-- Python 3.11+
-- Redis
-- Supabase account (or local PostgreSQL)
+- Docker with Compose, or Node.js 20 and Python 3.11;
+- a Supabase project with the repository schema and private resume bucket;
+- Redis when Morgan or Taylor is enabled;
+- Neo4j AuraDB for persistent candidate memory;
+- Agora projects/pipelines for official interviews and, separately, Morgan/Taylor;
+- AICredits credentials for the selected interview and report models; and
+- a public HTTPS backend URL for Agora callbacks during live voice testing.
 
-### Frontend
+### Configure
 
 ```bash
-cd frontend
-npm install
-cp ../.env.example .env.local
-npm run dev
-# → http://localhost:3000
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
 ```
 
-### Backend
+Fill the server-side values in `backend/.env`. Never expose service-role, model-provider, Neo4j, Agora certificate, REST, Composio, or email credentials through `NEXT_PUBLIC_*` variables.
+
+### Docker Compose
 
 ```bash
+docker compose config --quiet
+docker compose up --build
+```
+
+The Compose file starts frontend, backend, Redis, and local Postgres/PostgREST support services. The backend still reads `backend/.env`; use the external Supabase configuration for the current application data path.
+
+### Run services directly
+
+```bash
+# Backend
 cd backend
-python -m venv venv
+python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp ../.env.example .env
-uvicorn app.core.main:app --reload --port 8000
-# → http://localhost:8000/docs
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Frontend, in another shell
+cd frontend
+npm ci
+npm run dev
 ```
 
-### Environment Variables
+Open `http://localhost:3000`. FastAPI documentation is available at `http://localhost:8000/docs` when `DEBUG=true`.
+
+Health endpoints:
+
+- `GET /api/v1/health` — process liveness;
+- `GET /api/v1/ready` — shallow application readiness; and
+- `GET /api/v1/custom-llm/readiness` — adapter availability without an external model call.
+
+The readiness endpoints do not verify every external dependency or credential.
+
+## Environment variables
+
+Only names and purposes are listed here. Use [backend/.env.example](backend/.env.example) and [frontend/.env.example](frontend/.env.example) as templates.
+
+| Category | Variables |
+| --- | --- |
+| Application | `APP_ENV`, `DEBUG`, `API_BASE_URL`, `FRONTEND_URL` |
+| Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `SUPABASE_STORAGE_BUCKET` |
+| Authentication | `JWT_SECRET`, `JWT_ALGORITHM`, `JWT_EXPIRY_MINUTES` |
+| Redis | `REDIS_URL` |
+| AICredits | `AICREDITS_API_KEY_GPT5_NANO`, `AICREDITS_API_KEY_GEMINI_FLASH_LITE`, `AICREDITS_GPT5_NANO_MODEL`, `AICREDITS_GEMINI_FLASH_LITE_MODEL`, `AICREDITS_M1_MODEL`, `AICREDITS_ORCHESTRATOR_MODEL`, `AICREDITS_BASE_URL`, timeout and reasoning-effort settings |
+| Runtime selection | `M1_PROVIDER`, `ORCHESTRATOR_PROVIDER` |
+| Official Agora interview | `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE`, project/pipeline IDs for Alex/Jordan, `AGORA_CUSTOM_LLM_PIPELINE_ID`, Agora REST credentials, `CUSTOM_LLM_URL`, `CUSTOM_LLM_API_KEY` |
+| Morgan/Taylor Agora | `AGORA_TRAINING_HR_APP_ID`, `AGORA_TRAINING_HR_APP_CERTIFICATE`, `AGORA_TRAINING_HR_API_TOKEN`, assistant IDs/UIDs, Morgan LLM mode/model, `VOICE_ASSISTANT_PUBLIC_URL`, session/idle durations |
+| Neo4j | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` |
+| Morgan connectors | `MORGAN_COMPOSIO_MCP_URL`, `MORGAN_COMPOSIO_API_KEY`, `MORGAN_COMPOSIO_OWNER_USER_ID` |
+| Email | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` |
+| Frontend public configuration | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_AGORA_APP_ID`, `NEXT_PUBLIC_APP_ENV`, optional `NEXT_PUBLIC_WS_URL` |
+
+`OPENAI_API_KEY` remains required by the current Pydantic settings schema for compatibility code, although the selected official interview intelligence and report path uses AICredits. Optional Groq, Gemini, Ollama, and S3 settings remain in source for explicit compatibility/test paths and are not the active provider architecture.
+
+## Security boundaries
+
+- JWT claims are verified server-side and resolved back to an active persisted user.
+- Role checks separate recruiter/admin and candidate operations.
+- Recruiter access follows job ownership and matching tenant metadata; sharing a role or tenant does not grant access to another recruiter's jobs.
+- Candidate routes check the persisted candidate identity and application/interview relationships.
+- Private resumes are served through authorized backend routes rather than public object URLs.
+- Supabase service-role, Neo4j, Agora, AICredits, Composio, and email credentials remain server-side.
+- Agent context has bounded serialization and separates resume claims from interview evidence.
+- Knowledge-graph evidence records answer, round, competency, and source-agent provenance.
+- Candidate report endpoints project candidate-safe feedback rather than recruiter-only analysis.
+
+Current hardening limitation: the Custom LLM router records whether Agora supplied a bearer credential but does not compare it with `CUSTOM_LLM_API_KEY`. Some legacy Agora token/config control routes also lack the resource authorization used by the newer session routes. These endpoints must be protected before exposing the backend publicly.
+
+## Validation
+
+Backend tests load configuration from `backend/.env`; live provider tests remain conditional on their credentials and flags.
 
 ```bash
-cp .env.example .env
+# Backend
+cd backend
+PYTHONPATH=. venv/bin/python -m pytest tests -q
+
+# Frontend behavior, types, lint, and production build
+cd frontend
+node --test tests/*.test.mjs
+npx tsc --noEmit --incremental false
+npm run lint
+NEXT_TELEMETRY_DISABLED=1 npm run build
+
+# Container configuration
+cd ..
+docker compose config --quiet
 ```
 
-See `.env.example` for all required variables (OpenAI, Supabase, Redis, S3, etc.)
+Do not interpret a skipped live-provider test as a verified integration. The production build requires network access when `next/font` fetches Inter.
 
----
+## Deployment direction
 
-## Roadmap
+The repository is container-ready but does not contain a completed AWS deployment. The intended compute-only topology is one EC2 host running the frontend and backend containers, plus Redis when auxiliary assistants are enabled. The backend connects outward to Supabase, Neo4j AuraDB, Agora, AICredits, Composio, and Resend.
 
-- [x] Landing page with dashboard mockup
-- [x] Auth (login/signup with role toggle)
-- [x] Job management (listing, detail, create, apply)
-- [x] Admin dashboard with pipeline analytics
-- [x] Candidates Kanban (5-stage pipeline)
-- [x] Interview calendar view
-- [x] Assessment reports with score circles
-- [x] AI interview room (dark theme, transcript, rounds)
-- [x] Candidate self-service portal
-- [x] Settings with AI config (threshold sliders, rubric weights)
-- [x] Backend API skeleton (FastAPI, 52 files)
-- [ ] Supabase migrations (21 tables)
-- [ ] API wiring (frontend ↔ backend)
-- [ ] OpenAI Realtime API integration (voice interviews)
-- [ ] Resume parsing with GPT-4o structured output
-- [ ] Eligibility scoring engine
-- [ ] Real-time evaluation pipeline
-- [ ] PDF report generation
-- [ ] Email notifications (interview invites, results)
-- [ ] MediaPipe proctoring integration
-- [ ] Docker deployment
-
----
-
-## Contributing
-
-Contributions are welcome! Please read the codebase structure above and check `CLAUDE.md` for architecture context.
-
-```bash
-# Fork → Clone → Branch → PR
-git checkout -b feature/your-feature
-```
-
----
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  Built with Next.js, FastAPI, OpenAI, and Supabase.<br/>
-  <strong>Star this repo</strong> if you find it useful!
-</p>
+ECS Fargate, ALB, CloudFront, RDS, and S3 are not required by the current deployment direction. AWS work remains paused until the application and external integrations are validated and deployment is explicitly authorized.

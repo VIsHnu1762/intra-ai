@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight, Menu, X } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 
 const NAV_ITEMS = [
   { label: "How It Works", href: "#how-it-works" },
@@ -48,13 +49,8 @@ export default function Nav() {
     >
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-between">
         {/* Left: Brand Wordmark */}
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-[#0F0F0F] flex items-center justify-center text-white text-xs font-bold tracking-tight">
-            IA
-          </div>
-          <span className="text-lg font-bold tracking-tight text-[#0F0F0F]">
-            Intra <span className="text-[#00A88A]">AI</span>
-          </span>
+        <Link href="/" aria-label="Intra AI home">
+          <Logo size="default" withText priority />
         </Link>
 
         {/* Center: Desktop Nav Links (Clean, muted, single hover color) */}
