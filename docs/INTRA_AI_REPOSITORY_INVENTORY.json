@@ -1,0 +1,213 @@
+{
+  "audit_version": "1.0.0",
+  "audit_date": "2026-09-04",
+  "repository": {
+    "name": "intra-ai",
+    "target_platform": "Intra AI / EchoSphere",
+    "git_branch": "main",
+    "commits_ahead_of_origin": 2,
+    "latest_commit": "6f5c487bc98922c741c03e2b77023fd43b04f45a",
+    "latest_commit_message": "fix(orchestration): fix Agora live interview context reset and session concurrency",
+    "working_tree_status": {
+      "modified_files_count": 20,
+      "untracked_files_count": 15,
+      "secrets_in_git": false
+    }
+  },
+  "subsystems": {
+    "fast_path_classifier": {
+      "status": "IMPLEMENTED",
+      "file": "backend/app/custom_llm/classifier.py",
+      "tiers": ["Tier 1: Exact/Regex (<0.05ms)", "Tier 2: N-gram cosine similarity (<0.15ms)", "Fallback: Conservative Answer"],
+      "supported_intents": ["AUDIO_CHECK", "TIME_PAUSE", "REPEAT_QUESTION", "INTERVIEW_ANSWER"],
+      "test_coverage": "45 unit tests passed"
+    },
+    "m1_interview_intelligence": {
+      "status": "IMPLEMENTED",
+      "files": [
+        "backend/app/interview_intelligence/models.py",
+        "backend/app/interview_intelligence/provider.py",
+        "backend/app/interview_intelligence/analyzer.py",
+        "backend/app/interview_intelligence/prompts.py"
+      ],
+      "active_provider": "groq",
+      "active_model": "openai/gpt-oss-20b",
+      "active_base_url": "https://api.groq.com/openai/v1",
+      "measured_latency_mean_ms": 3827,
+      "supported_providers": ["groq", "gemini", "ollama", "mock", "openai"],
+      "contract": "AnswerAnalysis",
+      "test_coverage": "70+ unit and live integration tests passed"
+    },
+    "meta_orchestrator": {
+      "status": "IMPLEMENTED",
+      "file": "backend/app/orchestrator/graph.py",
+      "framework": "LangGraph StateGraph",
+      "nodes_count": 7,
+      "canonical_actions": ["ASK_QUESTION", "SWITCH_AGENT", "COMPLETE"],
+      "decision_priorities": [
+        "1. Contradiction Resolution",
+        "2. Vagueness Clarification",
+        "3. Probe Fundamentals (<0.45 performance, reduce difficulty)",
+        "4. Probe Missing Information (promising but shallow)",
+        "5. Advance Competency (sufficient depth, increase difficulty if strong)",
+        "6. Switch Agent (current agent focal competencies finished)"
+      ],
+      "test_coverage": "20 unit tests passed"
+    },
+    "custom_llm_adapter": {
+      "status": "IMPLEMENTED",
+      "file": "backend/app/custom_llm/adapter.py",
+      "endpoints": ["POST /v1/chat/completions", "POST /api/v1/chat/completions"],
+      "features": ["OpenAI compatibility", "SSE streaming", "session ID resolution", "asyncio lock per interview"],
+      "test_coverage": "38 unit/integration tests passed"
+    },
+    "agent_system": {
+      "status": "IMPLEMENTED",
+      "file": "backend/app/agents/registry.py",
+      "n_agent_capable": true,
+      "registered_agents": [
+        {
+          "agent_id": "alex",
+          "name": "Alex",
+          "role": "Senior Technical Manager",
+          "agora_pipeline_id": "eb714d82ec524f14981e5b5f5108cbd1",
+          "tts_voice": "echo"
+        },
+        {
+          "agent_id": "jordan",
+          "name": "Jordan",
+          "role": "Senior Product Manager",
+          "agora_pipeline_id": "642bb4345fa244099a78a50cede2d7d3",
+          "tts_voice": "nova"
+        }
+      ],
+      "test_coverage": "15 unit tests passed"
+    },
+    "session_and_meeting_domain": {
+      "status": "IMPLEMENTED",
+      "files": [
+        "backend/app/sessions/models.py",
+        "backend/app/sessions/service.py",
+        "backend/app/sessions/store.py",
+        "backend/app/routes/sessions.py"
+      ],
+      "channel_naming_convention": "intra-{interview_id}",
+      "token_generation": "AccessToken2 Token007 (unified RTC + RTM privileges)",
+      "agent_dispatch": "Agora Conversational AI v2 REST join API",
+      "test_coverage": "19 unit/integration tests passed"
+    },
+    "transcript_subsystem": {
+      "status": "IMPLEMENTED",
+      "files": [
+        "backend/app/transcript/models.py",
+        "backend/app/transcript/service.py",
+        "backend/app/transcript/store.py"
+      ],
+      "features": ["Deduplication", "monotonic timestamp ordering", "speaker normalization (candidate vs agent)", "webhook ingestion (103/112)"],
+      "test_coverage": "21 unit/integration tests passed"
+    },
+    "knowledge_graph": {
+      "status": "NOT_IMPLEMENTED",
+      "neo4j_present": false,
+      "sql_graph_tables_present": false,
+      "notes": "Architectural documentation references KG, but zero code or database tables exist in checkout."
+    },
+    "persistent_candidate_context": {
+      "status": "NOT_IMPLEMENTED",
+      "cross_round_persistence": false,
+      "notes": "Context is held in Python memory dictionaries; resets on server restart."
+    },
+    "cv_jd_grounding": {
+      "status": "NOT_IMPLEMENTED",
+      "notes": "ATS parses resume and stores in Postgres, but data is not piped into live Agora turns."
+    }
+  },
+  "test_metrics": {
+    "backend_total_tests": 242,
+    "backend_passed": 233,
+    "backend_skipped": 9,
+    "backend_failed": 0,
+    "backend_runtime_seconds": 105.32,
+    "frontend_unit_tests": 0,
+    "frontend_build_status": "SUCCESS (Next.js 16 build compiles with 0 errors)"
+  },
+  "routes_summary": {
+    "total_routes": 47,
+    "session_routes": [
+      "POST /api/v1/sessions",
+      "GET /api/v1/sessions/{interview_id}",
+      "POST /api/v1/sessions/{interview_id}/start",
+      "POST /api/v1/sessions/{interview_id}/stop",
+      "GET /api/v1/agents"
+    ],
+    "custom_llm_routes": [
+      "POST /v1/chat/completions",
+      "POST /api/v1/chat/completions",
+      "GET /v1/custom-llm/readiness",
+      "GET /api/v1/custom-llm/readiness"
+    ],
+    "agora_interview_routes": [
+      "GET /api/v1/interviews/{interview_id}/agora-token",
+      "GET /api/v1/interviews/{interview_id}/agora-agent-config",
+      "POST /api/v1/interviews/{interview_id}/start-agent",
+      "POST /api/v1/interviews/{interview_id}/stop-agent",
+      "POST /api/v1/interviews/{interview_id}/transcript-events",
+      "GET /api/v1/interviews/{interview_id}/transcript",
+      "POST /api/v1/interviews/agora-webhook",
+      "POST /api/v1/interviews/{interview_id}/agora-webhook"
+    ]
+  },
+  "known_bugs": [
+    {
+      "id": "BUG-001",
+      "severity": "P1",
+      "symptom": "In-memory state lost on server restart",
+      "affected_files": ["backend/app/interview_context/store.py", "backend/app/sessions/store.py"]
+    },
+    {
+      "id": "BUG-002",
+      "severity": "P1",
+      "symptom": "Agora cloud agent dispatch requires outbound internet and valid Customer ID Basic Auth",
+      "affected_files": ["backend/app/services/agora_agent_service.py"]
+    },
+    {
+      "id": "BUG-003",
+      "severity": "P2",
+      "symptom": "Candidate live turn disconnected from parsed CV and JD in prompt",
+      "affected_files": ["backend/app/custom_llm/adapter.py"]
+    },
+    {
+      "id": "BUG-004",
+      "severity": "P2",
+      "symptom": "Duplicate session/token endpoints in routes/interviews.py vs routes/sessions.py",
+      "affected_files": ["backend/app/routes/interviews.py", "backend/app/routes/sessions.py"]
+    },
+    {
+      "id": "BUG-005",
+      "severity": "P3",
+      "symptom": "Browser autoplay audio policy blocks playback until user interaction",
+      "affected_files": ["frontend/src/app/(candidate)/interview/[token]/page.tsx"]
+    }
+  ],
+  "merge_risks": {
+    "high_risk_files": [
+      "backend/app/main.py",
+      "backend/app/core/config.py",
+      "backend/app/routes/interviews.py",
+      "frontend/src/app/(candidate)/interview/[token]/page.tsx",
+      "docker-compose.yml"
+    ],
+    "medium_risk_files": [
+      "backend/requirements.txt",
+      "docker/init-db/01-init.sql"
+    ],
+    "low_risk_directories": [
+      "backend/app/agents/",
+      "backend/app/custom_llm/",
+      "backend/app/orchestrator/",
+      "backend/app/interview_intelligence/",
+      "backend/app/sessions/",
+      "backend/app/transcript/"
+    ]
+  }
+}

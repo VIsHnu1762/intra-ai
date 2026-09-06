@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.staging
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude internal
+.claude/agent-memory/
+.claude/worktrees/
+
+# Misc
+*.log
+coverage/
+.pytest_cache/
+.mypy_cache/
+
+# Local interview diagnostics and generated test documents
+/tmp/
+/output/
+
+# Local credentials document, if copied into this repository.
+/Morgan and Taylor.md

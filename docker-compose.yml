@@ -1,0 +1,131 @@
+services:
+  # ── PostgreSQL Database ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: intra_ai_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: intra_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/init-db:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d intra_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgREST (Supabase compatible REST API) ─────────
+  postgrest:
+    image: postgrest/postgrest:v12.2.0
+    container_name: intra_ai_postgrest
+    environment:
+      PGRST_DB_URI: postgres://authenticator:postgres@postgres:5432/intra_ai
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: intra-ai-dev-secret-key-32-chars-long!
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Gateway / Reverse Proxy ──────────────────────────
+  gateway:
+    image: nginx:alpine
+    container_name: intra_ai_gateway
+    volumes:
+      - ./docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgrest
+    restart: unless-stopped
+
+  # ── Redis ────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: intra_ai_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Backend API ──────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: intra_ai_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+      # Use the supplied Supabase project from backend/.env. The local
+      # PostgREST gateway is retained for development tooling, but its own JWT
+      # secret cannot validate a remote Supabase service-role token.
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/intra_ai
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=intra-ai-dev-secret-key-32-chars-long!
+      - API_BASE_URL=http://localhost:8000
+      - FRONTEND_URL=http://localhost:3000
+      # M1_PROVIDER and ORCHESTRATOR_PROVIDER come from backend/.env.
+      # Do not override the selected runtime model with a compose default.
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gpt-oss:20b}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-https://ollama.com/v1}
+      - GROQ_MODEL=${GROQ_MODEL:-openai/gpt-oss-20b}
+      - GROQ_BASE_URL=${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      - GROQ_TIMEOUT_SECONDS=${GROQ_TIMEOUT_SECONDS:-20.0}
+      - AGORA_ALEX_PROJECT_ID=acbcfc97ea094e3681d46fe8da21e4d1
+      - AGORA_ALEX_PIPELINE_ID=eb714d82ec524f14981e5b5f5108cbd1
+      - AGORA_JORDAN_PROJECT_ID=acbcfc97ea094e3681d46fe8da21e4d1
+      - AGORA_JORDAN_PIPELINE_ID=642bb4345fa244099a78a50cede2d7d3
+      - CUSTOM_LLM_URL=https://everlastingly-unissued-melita.ngrok-free.dev/api/v1/chat/completions
+      - CUSTOM_LLM_API_KEY=${CUSTOM_LLM_API_KEY:-intra-ai-custom-llm-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Frontend App ─────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: intra_ai_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

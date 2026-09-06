@@ -1,0 +1,274 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* ── Intra AI Theme Palette (Cyber Teal) ────────────────────────────────── */
+  --color-brand: #0D9488;
+  --color-brand-hover: #0F766E;
+  --color-brand-light: #F0FDFA;
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-border: #E5E7EB;
+  --color-input-border: #D1D5DB;
+  --color-text-primary: #111827;
+  --color-text-muted: #6B7280;
+  --color-text-inverse: #FFFFFF;
+  --color-success: #057642;
+  --color-success-light: #ECFDF5;
+  --color-warning: #B45309;
+  --color-warning-light: #FFFBEB;
+  --color-error: #B91C1C;
+  --color-error-light: #FEF2F2;
+
+  /* ── Intra AI Obsidian Dark Surfaces ───────────────────────────────────── */
+  --color-obsidian-950: #030712;
+  --color-obsidian-900: #080C17;
+  --color-obsidian-850: #0F172A;
+  --color-obsidian-800: #1E293B;
+  --color-obsidian-750: #26334D;
+  --color-obsidian-border: #1E293B;
+  --color-obsidian-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-obsidian-border-glow: rgba(6, 182, 212, 0.25);
+  --color-obsidian-text: #F8FAFC;
+  --color-obsidian-text-muted: #94A3B8;
+  --color-obsidian-text-dim: #64748B;
+
+  /* ── Intra AI Agent: Alex (Technical Architecture) ─────────────────────── */
+  --color-agent-alex-primary: #06B6D4;
+  --color-agent-alex-hover: #0891B2;
+  --color-agent-alex-light: #ECFEFF;
+  --color-agent-alex-glow: rgba(6, 182, 212, 0.4);
+  --color-agent-alex-surface: #082F49;
+  --color-agent-alex-border: rgba(6, 182, 212, 0.35);
+
+  /* ── Intra AI Agent: Jordan (Product & Impact) ─────────────────────────── */
+  --color-agent-jordan-primary: #8B5CF6;
+  --color-agent-jordan-hover: #7C3AED;
+  --color-agent-jordan-light: #F5F3FF;
+  --color-agent-jordan-glow: rgba(139, 92, 246, 0.4);
+  --color-agent-jordan-surface: #2E1065;
+  --color-agent-jordan-border: rgba(139, 92, 246, 0.35);
+
+  /* ── Intra AI Conversational State Tokens ──────────────────────────────── */
+  --color-state-listening: #10B981;
+  --color-state-listening-glow: rgba(16, 185, 129, 0.4);
+  --color-state-thinking: #F59E0B;
+  --color-state-thinking-glow: rgba(245, 158, 11, 0.4);
+  --color-state-speaking: #06B6D4;
+  --color-state-speaking-glow: rgba(6, 182, 212, 0.4);
+  --color-state-handoff: #8B5CF6;
+  --color-state-handoff-glow: rgba(139, 92, 246, 0.4);
+  --color-state-completed: #10B981;
+
+  /* ── Typography Tokens ─────────────────────────────────────────────────── */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Dark mode root override when inside an obsidian container */
+  .dark-obsidian {
+    background: var(--color-obsidian-950);
+    color: var(--color-obsidian-text);
+  }
+
+  ::selection {
+    background: var(--color-brand);
+    color: white;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Glassmorphism Surface for Dark AI Interview Workspace */
+  .glass-obsidian {
+    background: rgba(8, 12, 23, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-panel {
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Agent Glow Effects */
+  .glow-alex {
+    box-shadow: 0 0 25px -4px rgba(6, 182, 212, 0.4);
+  }
+
+  .glow-jordan {
+    box-shadow: 0 0 25px -4px rgba(139, 92, 246, 0.4);
+  }
+
+  .glow-listening {
+    box-shadow: 0 0 20px -3px rgba(16, 185, 129, 0.4);
+  }
+
+  .glow-thinking {
+    box-shadow: 0 0 20px -3px rgba(245, 158, 11, 0.4);
+  }
+
+  /* Focus Accessible Rings */
+  .focus-ring {
+    outline: 2px solid var(--color-agent-alex-primary);
+    outline-offset: 2px;
+  }
+
+  /* Custom Slim Scrollbars */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+}
+
+/* ── Keyframe Animations ─────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes waveBar {
+  0%, 100% {
+    height: 6px;
+  }
+  50% {
+    height: 24px;
+  }
+}
+
+@keyframes handoffSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.animate-handoff {
+  animation: handoffSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes intraWaveBar {
+  0% {
+    height: 15%;
+  }
+  50% {
+    height: 95%;
+  }
+  100% {
+    height: 35%;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 45s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes borderBeam {
+  100% {
+    offset-distance: 100%;
+  }
+}
+
+.border-beam-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.border-beam-container::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(90deg, transparent 0%, #00A88A 50%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: rotateBeam 4s linear infinite;
+}
+
+@keyframes rotateBeam {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
