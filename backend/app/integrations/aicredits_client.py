@@ -181,15 +181,21 @@ class AICreditsClient:
         return await self._request(purpose, messages)
 
     async def _request(
-        self, purpose: Literal["report", "candidate_feedback", "m1", "orchestrator"], messages: list[dict],
+        self, purpose: Literal["report", "candidate_feedback", "m1", "orchestrator", "resume", "role_play", "gd", "company"], messages: list[dict],
     ) -> dict[str, Any]:
         nano = purpose in {"report", "m1"}
-        realtime = purpose in {"m1", "orchestrator"}
+        feature = purpose in {"resume", "role_play", "gd", "company"}
+        realtime = purpose in {"m1", "orchestrator"} or feature
         key = getattr(self._settings, "AICREDITS_API_KEY_GPT5_NANO" if nano else "AICREDITS_API_KEY_GEMINI_FLASH_LITE", "")
         if not isinstance(key, str) or not key.strip():
             raise AICreditsError("configuration_missing")
         model = getattr(self._settings, "AICREDITS_GPT5_NANO_MODEL" if nano else "AICREDITS_GEMINI_FLASH_LITE_MODEL", "")
-        if realtime:
+        if feature:
+            override = getattr(self._settings, "AICREDITS_" + purpose.upper() + "_MODEL", "")
+            if not isinstance(override, str):
+                raise AICreditsError("configuration_invalid")
+            model = override.strip() or model
+        elif realtime:
             override = getattr(self._settings, "AICREDITS_M1_MODEL" if purpose == "m1" else "AICREDITS_ORCHESTRATOR_MODEL", "")
             if not isinstance(override, str):
                 raise AICreditsError("configuration_invalid")
@@ -278,6 +284,14 @@ class AICreditsClient:
             raise AICreditsError("transport_error", retryable=True) from None
         except (ValueError, TypeError, KeyError, RecursionError, UnicodeError):
             raise AICreditsError("response_invalid") from None
+
+    async def generate_feature_json(
+        self, purpose: Literal["resume", "role_play", "gd", "company"], *, messages: list[dict],
+    ) -> dict[str, Any]:
+        """Feature-owned schemas over the same validated AICredits transport."""
+        if purpose not in {"resume", "role_play", "gd", "company"}:
+            raise AICreditsError("configuration_invalid")
+        return await self._request(purpose, messages)
 
 
 async def generate_report_narrative(assessment: dict[str, Any]) -> dict[str, Any]:

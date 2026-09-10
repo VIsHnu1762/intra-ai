@@ -1,0 +1,9 @@
+{$APP_DOMAIN} {
+    reverse_proxy frontend:3000
+}
+
+{$API_DOMAIN} {
+    reverse_proxy backend:8000 {
+        flush_interval -1
+    }
+}

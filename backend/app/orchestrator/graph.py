@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 from typing import Any, Optional
 import structlog
 from langgraph.graph import END, START, StateGraph
@@ -636,7 +637,7 @@ def build_orchestrator_graph(registry: AgentRegistry) -> Any:
             )
             return result
 
-        # ── FORCING CONDITIONS (always deterministic) ──
+    # ── FORCING CONDITIONS (always deterministic) ──
         if priority == "contradiction":
             detail = analysis.contradiction_details or "earlier statements"
             question = analysis.recommended_follow_up or (
@@ -658,21 +659,22 @@ def build_orchestrator_graph(registry: AgentRegistry) -> Any:
             reason = analysis.vague_reason or "lacked technical depth"
             target_comp = state.get("target_competency") or "general_competency"
             comp_display = target_comp.replace("_", " ")
-            if analysis.recommended_follow_up and not analysis.recommended_follow_up.startswith(
-                ("Could you provide a concrete", "Can you walk through an exact technical")
-            ):
-                question = analysis.recommended_follow_up
-            else:
-                question = (
-                    f"That description is quite high-level. To evaluate your {comp_display} depth, "
-                    f"could you walk me through the specific architectural components, throughput metrics, "
-                    f"and technical decisions you personally owned?"
-                )
+            new_diff = calculate_adaptive_difficulty(
+                current_difficulty=context.difficulty,
+                performance=analysis.overall_performance,
+                has_sufficient_depth=False,
+                is_vague=True,
+                contradiction=False,
+                agent_profile=curr_profile,
+            )
+            question = (
+                f"In a web app, when users report a problem, what is the first thing you would check first for {comp_display}?"
+            )
             action = NextAction(
                 action=ActionType.ASK_QUESTION,
                 target_agent_id=curr_profile.agent_id,
                 competency=target_comp,
-                difficulty=context.difficulty,
+                difficulty=new_diff,
                 question_text=question,
                 rationale=f"Answer was vague ({reason}); probing for concrete details.",
                 metadata={"nemotron_used": False, "priority": "vagueness"},
@@ -735,47 +737,8 @@ def build_orchestrator_graph(registry: AgentRegistry) -> Any:
             nemotron_decision = None
             nemotron_used = False
 
-        # When the current agent still owns a specific competency, advancing
-        # that competency is a contract with the dialogue layer. A live model
-        # may otherwise route to a different topic or persona even though the
-        # deterministic policy selected the next owned target. Keep valid
-        # model wording, but use the safe deterministic question when the
-        # routing decision violates that contract.
-        if (
-            priority == "advance_competency"
-            and nemotron_decision
-            and nemotron_used
-            and state.get("target_competency")
-        ):
-            expected_competency = str(state["target_competency"]).strip().lower()
-            decision_target = (nemotron_decision.target_agent_id or "").strip().lower()
-            decision_competency = (nemotron_decision.competency or "").strip().lower()
-            invalid_advance_question = (
-                nemotron_decision.action == ActionType.ASK_QUESTION.value
-                and (
-                    decision_target != curr_profile.agent_id.strip().lower()
-                    or decision_competency != expected_competency
-                )
-            )
-            invalid_unresolved_handoff = (
-                nemotron_decision.action == ActionType.SWITCH_AGENT.value
-                and decision_competency not in {
-                    str(comp).strip().lower() for comp in effective_missing
-                }
-            )
-            if invalid_advance_question or invalid_unresolved_handoff:
-                logger.warning(
-                    "nemotron_non_deterministic_advance_rejected",
-                    current_agent=curr_profile.agent_id,
-                    target_agent=nemotron_decision.target_agent_id,
-                    target_competency=state.get("target_competency"),
-                    decision_competency=nemotron_decision.competency,
-                )
-                nemotron_decision = None
-                nemotron_used = False
-
         if nemotron_decision and nemotron_used:
-            return _build_action_from_nemotron(
+            result = _build_action_from_nemotron(
                 decision=nemotron_decision,
                 state=state,
                 context=context,
@@ -783,6 +746,8 @@ def build_orchestrator_graph(registry: AgentRegistry) -> Any:
                 curr_profile=curr_profile,
                 effective_missing=effective_missing,
             )
+            result["next_action"].metadata["priority"] = priority
+            return result
 
         # ── DETERMINISTIC FALLBACK ──
         logger.info("nemotron_fallback_applied", priority=priority)
@@ -827,6 +792,33 @@ def build_orchestrator_graph(registry: AgentRegistry) -> Any:
         target_comp = state.get("target_competency")
 
         evidence_subject = choose_evidence_subject(analysis, context, target_comp)
+
+        if priority == "vagueness":
+            reason = analysis.vague_reason or "lacked technical depth"
+            target_comp = target_comp or "general_competency"
+            comp_display = target_comp.replace("_", " ")
+            new_diff = calculate_adaptive_difficulty(
+                current_difficulty=context.difficulty,
+                performance=analysis.overall_performance,
+                has_sufficient_depth=False,
+                is_vague=True,
+                contradiction=False,
+                agent_profile=curr_profile,
+            )
+            question = (
+                f"In a web app, when users report a problem, what is the first thing you "
+                f"would check first for {comp_display}?"
+            )
+            action = NextAction(
+                action=ActionType.ASK_QUESTION,
+                target_agent_id=curr_profile.agent_id,
+                competency=target_comp,
+                difficulty=new_diff,
+                question_text=question,
+                rationale=f"Answer was vague ({reason}); probing for concrete details.",
+                metadata={"nemotron_used": False, "priority": "vagueness"},
+            )
+            return {"next_action": action}
 
         if priority == "probe_missing_info":
             if not target_comp:
@@ -907,9 +899,12 @@ def build_orchestrator_graph(registry: AgentRegistry) -> Any:
             agent_profile=curr_profile,
         )
         comp_display = target_comp.replace("_", " ")
-        question = analysis.recommended_follow_up or (
-            f"Let's move on to {comp_display}. How have you designed this in production?"
-        )
+        if analysis.recommended_follow_up and comp_display.casefold() in analysis.recommended_follow_up.casefold():
+            question = analysis.recommended_follow_up
+        else:
+            question = (
+                f"Let's move on to {comp_display}. How have you applied this in production, and where did it help?"
+            )
         action = NextAction(
             action=ActionType.ASK_QUESTION,
             target_agent_id=curr_profile.agent_id,
@@ -1005,9 +1000,19 @@ def build_orchestrator_graph(registry: AgentRegistry) -> Any:
                         action.metadata["follow_up_question_repaired"] = True
             m1_question_preferred = False
             probe = analysis.recommended_follow_up or ""
+            # A weak/vague answer needs one concrete fact, not a list of requested
+            # deliverables such as diagrams and metrics. Keep comparison questions
+            # ("between X and Y") eligible for the existing grounding checks.
+            compound_m1_probe = bool(
+                (analysis.vague or analysis.overall_performance < 0.45)
+                and re.search(r"\b(?:provide|give|list|share|include)\b[^?]*\band\b", probe, re.IGNORECASE)
+            )
+            if compound_m1_probe:
+                action.metadata["m1_probe_rejected"] = "compound_deliverables"
             assessed_now = ({normalize_competency(asked.competency)} if asked is not None else
                             {normalize_competency(f.competency_id) for f in analysis.competency_findings})
             if (contract is None and contract_error is None
+                    and not compound_m1_probe
                     and not spoken_question_is_clear(question, difficulty)
                     and probe and probe != question and (not assessed_now or target in assessed_now)
                     and spoken_question_is_clear(probe, difficulty)
@@ -1045,14 +1050,17 @@ def build_orchestrator_graph(registry: AgentRegistry) -> Any:
                 contract_objective in used_objectives or information_target_was_asked(contract, context.question_history)))
             repeated = repeated or contract_repeated
             objectives_exhausted = bool(options) and all(key in used_objectives for key, _ in options)
-            if objectives_exhausted or not question or repeated or stale_followup or ungrounded or unclear or (simpler and not analysis.contradiction_detected and not grounded_simple_question):
+            if (
+                objectives_exhausted or not question or repeated or stale_followup or ungrounded
+                or unclear or (simpler and not analysis.contradiction_detected and not grounded_simple_question)
+            ):
                 # The existing M1 call often already selected a narrower fact.
                 # Keep that probe when Meta's prose fails, before consulting the
                 # generic bank. It may not reopen a consumed contract/objective.
                 probe = analysis.recommended_follow_up or ""
                 replacement_source = "fallback"
                 replacement = None
-                if (not objectives_exhausted and not contract_repeated and probe and probe != question
+                if (not objectives_exhausted and not contract_repeated and not compound_m1_probe and probe and probe != question
                         and (not assessed or target in assessed)
                         and spoken_question_is_clear(probe, DifficultyLevel.EASY if simpler else difficulty)
                         and not question_has_unspecified_scope(probe)

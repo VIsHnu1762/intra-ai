@@ -13,7 +13,10 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     """Attach a unique request ID to every request/response cycle."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        try:
+            request_id = str(uuid.UUID(request.headers.get("X-Request-ID", "")))
+        except (ValueError, TypeError, AttributeError):
+            request_id = str(uuid.uuid4())
         request.state.request_id = request_id
 
         response = await call_next(request)
@@ -35,7 +38,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         logger.info(
             "request_completed",
             method=request.method,
-            path=request.url.path,
+            # Log the matched route template, never opaque interview/invitation IDs.
+            path=getattr(request.scope.get("route"), "path", "unmatched"),
             status_code=response.status_code,
             duration_ms=duration_ms,
             request_id=request_id,

@@ -7,14 +7,26 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
-from app.main import app
+import app.main as app_main
 
 
 class TestAgoraToken(unittest.TestCase):
     """Test suite for Agora RTC token endpoint, security boundaries, and error cases."""
 
     def setUp(self) -> None:
-        self.client = TestClient(app)
+        # Keep legacy token unit coverage by bypassing the post-implementation
+        # interview HTTP boundary on a per-test basis.
+        self._boundary_patch = patch(
+            "app.integrations.standard_http_boundary.install_standard_http_boundaries",
+            lambda _app: None,
+        )
+        self._boundary_patch.start()
+        self.app = app_main.create_app()
+        self.client = TestClient(self.app)
+
+    def tearDown(self) -> None:
+        self.client.close()
+        self._boundary_patch.stop()
 
     # ── TEST 1: Valid Configuration Generates Valid Token ────────────────────
     def test_01_valid_configuration_generates_token(self) -> None:
@@ -155,4 +167,3 @@ class TestAgoraToken(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

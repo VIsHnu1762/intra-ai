@@ -1,50 +1,4 @@
 services:
-  # ── PostgreSQL Database ──────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: intra_ai_postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: intra_ai
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./docker/init-db:/docker-entrypoint-initdb.d
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d intra_ai"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # ── PostgREST (Supabase compatible REST API) ─────────
-  postgrest:
-    image: postgrest/postgrest:v12.2.0
-    container_name: intra_ai_postgrest
-    environment:
-      PGRST_DB_URI: postgres://authenticator:postgres@postgres:5432/intra_ai
-      PGRST_DB_SCHEMA: public
-      PGRST_DB_ANON_ROLE: anon
-      PGRST_JWT_SECRET: intra-ai-dev-secret-key-32-chars-long!
-      PGRST_DB_USE_LEGACY_GUCS: "false"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # ── Gateway / Reverse Proxy ──────────────────────────
-  gateway:
-    image: nginx:alpine
-    container_name: intra_ai_gateway
-    volumes:
-      - ./docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
-    ports:
-      - "8081:8081"
-    depends_on:
-      - postgrest
-    restart: unless-stopped
 
   # ── Redis ────────────────────────────────────────────
   redis:
@@ -56,7 +10,7 @@ services:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -74,10 +28,7 @@ services:
     environment:
       - APP_ENV=development
       - DEBUG=true
-      # Use the supplied Supabase project from backend/.env. The local
-      # PostgREST gateway is retained for development tooling, but its own JWT
-      # secret cannot validate a remote Supabase service-role token.
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/intra_ai
+      # Use the supplied Supabase project from backend/.env.
       - REDIS_URL=redis://redis:6379/0
       - JWT_SECRET=intra-ai-dev-secret-key-32-chars-long!
       - API_BASE_URL=http://localhost:8000
@@ -97,15 +48,11 @@ services:
       - CUSTOM_LLM_URL=https://everlastingly-unissued-melita.ngrok-free.dev/api/v1/chat/completions
       - CUSTOM_LLM_API_KEY=${CUSTOM_LLM_API_KEY:-intra-ai-custom-llm-local}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
-      gateway:
-        condition: service_started
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -116,6 +63,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+        - NEXT_PUBLIC_AGORA_APP_ID=acbcfc97ea094e3681d46fe8da21e4d1
+        - NEXT_PUBLIC_APP_ENV=development
     container_name: intra_ai_frontend
     ports:
       - "3000:3000"
@@ -127,5 +78,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
   redis_data:

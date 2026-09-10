@@ -94,7 +94,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         )
         logger.info("supabase_connected")
     except Exception as e:
-        logger.warning("supabase_init_failed", error=str(e))
+        logger.warning("supabase_init_failed", error_type=type(e).__name__)
         _app.state.supabase = None
 
     # Redis
@@ -107,9 +107,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             await _app.state.redis.ping()
             logger.info("redis_connected")
         except Exception:
-            logger.warning("redis_unavailable", url=settings.REDIS_URL)
+            logger.warning("redis_unavailable")
     except Exception as e:
-        logger.warning("redis_init_failed", error=str(e))
+        logger.warning("redis_init_failed", error_type=type(e).__name__)
         _app.state.redis = None
 
     # Reuse Groq TLS/HTTP connections for M1 and the orchestrator on this loop.
@@ -186,6 +186,18 @@ def create_app() -> FastAPI:
 
     # ── Routers ──────────────────────────────────────────
     api = "/api/v1"
+    if settings.CANDIDATE_ONBOARDING_ENABLED:
+        from app.candidate_onboarding.routes import router as onboarding_router
+        app.include_router(onboarding_router, prefix=api)
+    if settings.COMPANY_KNOWLEDGE_ENABLED:
+        from app.company_knowledge.routes import router as company_knowledge_router
+        app.include_router(company_knowledge_router, prefix=api)
+    if settings.ROLE_PLAY_ENABLED:
+        from app.role_play.routes import router as role_play_router
+        app.include_router(role_play_router, prefix=api)
+    if settings.GROUP_DISCUSSION_ENABLED:
+        from app.group_discussion.routes import router as group_discussion_router
+        app.include_router(group_discussion_router, prefix=api)
     app.include_router(health_router, prefix=api)
     app.include_router(interview_templates_router, prefix=api)
     app.include_router(auth_router, prefix=api)
@@ -210,6 +222,17 @@ def create_app() -> FastAPI:
     @app.get("/", include_in_schema=False)
     async def root() -> dict:
         return {"status": "ok", "service": "intra-ai-api"}
+
+    if settings.COMPANY_KNOWLEDGE_ENABLED:
+        from app.company_knowledge.intelligence_routes import router as policy_intelligence_router
+        app.include_router(policy_intelligence_router, prefix="/api/v1")
+
+    # HTTP credential enforcement is outside the frozen Standard Interview stack.
+    from app.core.custom_llm_boundary import CustomLLMCredentialBoundary
+    app.add_middleware(CustomLLMCredentialBoundary, key=settings.CUSTOM_LLM_API_KEY)
+
+    from app.integrations.standard_http_boundary import install_standard_http_boundaries
+    install_standard_http_boundaries(app)
 
     return app
 

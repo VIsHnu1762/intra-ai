@@ -2,7 +2,7 @@ __pycache__
 *.pyc
 .git
 *.md
-.env
+.env*
 .venv
 venv
 tests

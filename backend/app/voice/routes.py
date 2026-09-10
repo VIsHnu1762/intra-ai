@@ -47,7 +47,12 @@ async def safe_call(awaitable):
 @router.post("/{persona}/sessions", status_code=201)
 async def start_voice(persona: Literal["taylor", "morgan"], body: StartVoiceSession,
                       request: Request, user=Depends(get_current_user)):
-    return await safe_call(get_service(request).start(persona, user, body.context, body.practice))
+    return await safe_call(get_service(request).start(persona, user, body.context, body.practice, force=body.force))
+
+
+@router.post("/{persona}/sessions/active/end")
+async def end_active_voice(persona: Literal["taylor", "morgan"], request: Request, user=Depends(get_current_user)):
+    return await safe_call(get_service(request).end_active(persona, user))
 
 
 @router.get("/sessions/{sid}")

@@ -21,6 +21,20 @@ The repository contains a Next.js frontend and a FastAPI backend. Supabase provi
 | Morgan | Implemented with configuration | Recruiter voice assistant for scoped HR data, reviewed database actions, email/calendar/Slack workflows, and interview scheduling. |
 | Taylor | Implemented with configuration | Candidate practice assistant with CV/job context and end-of-practice coaching. Taylor feedback does not affect application status or official scores. |
 
+## Feature extension checkpoint
+
+See the [architecture blueprint](docs/FEATURE_BLUEPRINT.md), [implementation/verification audit](docs/FEATURE_IMPLEMENTATION_AUDIT.md), and [operations guide](docs/FEATURE_OPERATIONS.md) for the isolated feature extensions.
+
+| Capability | Checked-in implementation | Verification boundary |
+| --- | --- | --- |
+| Resume onboarding | Independent private PDF/DOCX profiles, versions, replacement, application reuse and Taylor general-practice context | Database/API/browser checks; live AICredits parsing and private Supabase object storage |
+| Company knowledge | Versioned/effective-dated documents, authorized bounded retrieval, exact cited answers and context enrichment | Database/security/browser checks; live AICredits source selection |
+| Role-play | Reusable personas/scenarios, separate intelligence/orchestrator/actions, durable text sessions, evidence and reports | API/browser flows; live AICredits and AuraDB integration with isolated relational rows |
+| Group discussion | Shared text sessions, secure invitations, participation signals, separate intelligence/moderator/actions and individual reports | Two-candidate API/browser flows; live AICredits and AuraDB integration with isolated relational rows |
+| Deployment hardening | Authenticated boundaries, protected migrations, readiness/recovery worker and production Docker/Compose preparation | Local integration/container checks; no AWS deployment |
+
+**Hosted activation is pending.** The configured Supabase API works, but its new feature tables are not yet present and `DATABASE_URL` still targets localhost. Local verification is not a hosted migration or release claim. New RP/GD Agora voice remains adapter-only. M1 and `NextAction` remain exclusive to Standard Interview; the audit records the Standard-only `graph.py` regression-fix exception.
+
 ## System architecture
 
 ```mermaid
@@ -75,6 +89,8 @@ M1 evaluates the candidate's answer. Its typed `AnswerAnalysis` includes:
 - a recommended follow-up.
 
 M1 does not select the next agent or make a hiring decision.
+
+Role-play and group discussion use separate feature-specific intelligence. They do not call M1 or extend the Standard Interview Meta-Orchestrator or `NextAction`.
 
 ### Meta-Orchestrator
 
@@ -272,7 +288,7 @@ Health endpoints:
 - `GET /api/v1/ready` — shallow application readiness; and
 - `GET /api/v1/custom-llm/readiness` — adapter availability without an external model call.
 
-The readiness endpoints do not verify every external dependency or credential.
+Readiness now includes bounded/cached checks for enabled feature schemas and a fresh recovery-worker heartbeat when RP/GD are enabled. These endpoints still do not verify every external dependency or credential, and do not issue an external model call.
 
 ## Environment variables
 
@@ -286,6 +302,9 @@ Only names and purposes are listed here. Use [backend/.env.example](backend/.env
 | Redis | `REDIS_URL` |
 | AICredits | `AICREDITS_API_KEY_GPT5_NANO`, `AICREDITS_API_KEY_GEMINI_FLASH_LITE`, `AICREDITS_GPT5_NANO_MODEL`, `AICREDITS_GEMINI_FLASH_LITE_MODEL`, `AICREDITS_M1_MODEL`, `AICREDITS_ORCHESTRATOR_MODEL`, `AICREDITS_BASE_URL`, timeout and reasoning-effort settings |
 | Runtime selection | `M1_PROVIDER`, `ORCHESTRATOR_PROVIDER` |
+| Feature flags | `CANDIDATE_ONBOARDING_ENABLED`, `COMPANY_KNOWLEDGE_ENABLED`, `ROLE_PLAY_ENABLED`, `GROUP_DISCUSSION_ENABLED` |
+| New AICredits model slots | `AICREDITS_RESUME_MODEL`, `AICREDITS_ROLE_PLAY_MODEL`, `AICREDITS_GD_MODEL`, `AICREDITS_COMPANY_MODEL` |
+| Callback/invitation hardening | `AGORA_NOTIFICATION_SECRET`, optional `GD_INVITATION_SECRET`, configured `CUSTOM_LLM_API_KEY` |
 | Official Agora interview | `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE`, project/pipeline IDs for Alex/Jordan, `AGORA_CUSTOM_LLM_PIPELINE_ID`, Agora REST credentials, `CUSTOM_LLM_URL`, `CUSTOM_LLM_API_KEY` |
 | Morgan/Taylor Agora | `AGORA_TRAINING_HR_APP_ID`, `AGORA_TRAINING_HR_APP_CERTIFICATE`, `AGORA_TRAINING_HR_API_TOKEN`, assistant IDs/UIDs, Morgan LLM mode/model, `VOICE_ASSISTANT_PUBLIC_URL`, session/idle durations |
 | Neo4j | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` |
@@ -307,7 +326,7 @@ Only names and purposes are listed here. Use [backend/.env.example](backend/.env
 - Knowledge-graph evidence records answer, round, competency, and source-agent provenance.
 - Candidate report endpoints project candidate-safe feedback rather than recruiter-only analysis.
 
-Current hardening limitation: the Custom LLM router records whether Agora supplied a bearer credential but does not compare it with `CUSTOM_LLM_API_KEY`. Some legacy Agora token/config control routes also lack the resource authorization used by the newer session routes. These endpoints must be protected before exposing the backend publicly.
+The application boundary now authenticates both Custom LLM completion aliases against `CUSTOM_LLM_API_KEY`; missing configuration fails closed. Resource-scoped session/transcript operations require authorization, arbitrary legacy token/config/agent-control and browser-created session routes are retired with HTTP 410, and Agora notification handlers require signed payload verification. These changes do not generalize M1 or interview routing. Configure matching callback credentials/public URLs and complete live callback verification before public deployment; see the implementation audit for the exact scope and remaining limitations.
 
 ## Validation
 
@@ -333,6 +352,8 @@ docker compose config --quiet
 Do not interpret a skipped live-provider test as a verified integration. The production build requires network access when `next/font` fetches Inter.
 
 ## Deployment direction
+
+Production preparation is available in `docker-compose.production.yml`, `docker/production/Caddyfile`, and the [operations guide](docs/FEATURE_OPERATIONS.md). It includes the feature recovery worker and public frontend build-time configuration. Apply hosted migrations and pass readiness before activating the new feature stack. The existing Standard Interview process-local state remains a single-worker constraint.
 
 The repository is container-ready but does not contain a completed AWS deployment. The intended compute-only topology is one EC2 host running the frontend and backend containers, plus Redis when auxiliary assistants are enabled. The backend connects outward to Supabase, Neo4j AuraDB, Agora, AICredits, Composio, and Resend.
 

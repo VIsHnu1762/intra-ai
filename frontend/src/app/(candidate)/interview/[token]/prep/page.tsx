@@ -1,5 +1,7 @@
 "use client";
 
+import { standardInterviewFetch } from "@/lib/api/standard-interview-fetch";
+
 import { useState, useEffect, useRef, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -126,7 +128,7 @@ export default function PrepPage({ params }: { params: Promise<{ token: string }
     if (!token) return;
     setSessionLoading(true);
 
-    fetch(`${apiUrl}/api/v1/sessions/${token}`)
+    standardInterviewFetch(`${apiUrl}/api/v1/sessions/${token}`)
       .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -270,7 +272,7 @@ export default function PrepPage({ params }: { params: Promise<{ token: string }
     if (micLevelRafRef.current) { cancelAnimationFrame(micLevelRafRef.current); micLevelRafRef.current = null; }
 
     try {
-      const res = await fetch(`${apiUrl}/api/v1/sessions/${token}/start`, { method: "POST" });
+      const res = await standardInterviewFetch(`${apiUrl}/api/v1/sessions/${token}/start`, { method: "POST" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Failed to start session (${res.status})`);

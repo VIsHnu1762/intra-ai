@@ -47,3 +47,4 @@ coverage/
 
 # Local credentials document, if copied into this repository.
 /Morgan and Taylor.md
+/frontend/env_doc.md

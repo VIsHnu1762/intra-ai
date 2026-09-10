@@ -224,6 +224,38 @@ async def test_duplicate_start_does_not_create_second_agent(voice_env):
 
 
 @pytest.mark.asyncio
+async def test_force_start_replaces_active_session(voice_env):
+    first = await voice_env.service.start("taylor", {"sub": "user-a"}, DashboardContext())
+    second = await voice_env.service.start("taylor", {"sub": "user-a"}, DashboardContext(), force=True)
+    assert first["session_id"] != second["session_id"]
+    assert voice_env.agora.stop_agent.await_count == 1
+    assert voice_env.agora.start_agent.await_count == 2
+    assert await voice_env.service.store.active_ids() == [second["session_id"]]
+    first_stored = await voice_env.service.store.get(first["session_id"])
+    assert first_stored.status == "DISCONNECTED"
+
+
+@pytest.mark.asyncio
+async def test_end_active_terminates_all_active_sessions_for_persona(voice_env):
+    first = await voice_env.service.start("taylor", {"sub": "user-a"}, DashboardContext())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=voice_env.app), base_url="http://test") as client:
+        response = await client.post("/api/v1/voice/taylor/sessions/active/end", headers=browser_headers("user-a"))
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+        assert first["session_id"] in response.json()["ended_sessions"]
+    assert not await voice_env.service.store.active_ids()
+    assert voice_env.agora.stop_agent.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_morgan_start_includes_greeting_message(voice_env):
+    await voice_env.service.start("morgan", {"sub": "recruiter-a"}, DashboardContext())
+    options = voice_env.agora.start_agent.call_args.kwargs
+    assert "greeting_message" in options
+    assert "Morgan" in options["greeting_message"]
+
+
+@pytest.mark.asyncio
 async def test_generated_uid_respects_provider_cap_and_retries_both_agent_collisions(voice_env, monkeypatch):
     from app.voice import service as service_module
     values = iter([200, 201, None])  # +1 first collides with Taylor, then Morgan.

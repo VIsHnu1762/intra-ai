@@ -63,7 +63,8 @@ async function safeVoiceRequest<T>(request: Promise<T>): Promise<T> {
   }
 }
 export const voiceAssistantsApi = {
-  start: (agent: VoiceAgent, context: VoiceContext, practice?: TaylorPracticeOptions) => safeVoiceRequest(apiClient.post<VoiceCredentials>(`/api/v1/voice/${agent}/sessions`, { context, ...(agent === "taylor" && practice ? { practice } : {}) }, timeout(40_000))),
+  start: (agent: VoiceAgent, context: VoiceContext, practice?: TaylorPracticeOptions, force?: boolean) => safeVoiceRequest(apiClient.post<VoiceCredentials>(`/api/v1/voice/${agent}/sessions`, { context, force: Boolean(force), ...(agent === "taylor" && practice ? { practice } : {}) }, timeout(40_000))),
+  endActive: (agent: VoiceAgent) => safeVoiceRequest(apiClient.post<{ status: string; ended_sessions: string[] }>(`/api/v1/voice/${agent}/sessions/active/end`, {}, timeout())),
   finishPractice: (id: string) => safeVoiceRequest(apiClient.post<TaylorPracticeFeedback>(`${path(id)}/feedback`, {}, timeout(60_000))),
   practiceFeedback: (id: string) => safeVoiceRequest(apiClient.get<TaylorPracticeFeedback>(`${path(id)}/feedback`, timeout())),
   get: (id: string) => safeVoiceRequest(apiClient.get<VoiceSession>(path(id), timeout())),

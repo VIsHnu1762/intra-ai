@@ -58,6 +58,17 @@ class Settings(BaseSettings):
     AICREDITS_REALTIME_TIMEOUT_SECONDS: float = Field(default=30.0, ge=5, le=60)
     AICREDITS_M1_REASONING_EFFORT: Literal["minimal", "low", "medium", "high"] = "minimal"
 
+    # Independent feature slots, using the existing AICredits Flash-Lite key.
+    AICREDITS_RESUME_MODEL: str = ""
+    AICREDITS_ROLE_PLAY_MODEL: str = ""
+    AICREDITS_GD_MODEL: str = ""
+    AICREDITS_COMPANY_MODEL: str = ""
+    CANDIDATE_ONBOARDING_ENABLED: bool = True
+    COMPANY_KNOWLEDGE_ENABLED: bool = True
+    ROLE_PLAY_ENABLED: bool = True
+    GROUP_DISCUSSION_ENABLED: bool = True
+    GD_INVITATION_SECRET: str = Field(default="", repr=False)
+
     @field_validator(
         "AICREDITS_GPT5_NANO_MODEL", "AICREDITS_GEMINI_FLASH_LITE_MODEL",
         "AICREDITS_BASE_URL", "AICREDITS_TIMEOUT_SECONDS", "AICREDITS_REALTIME_TIMEOUT_SECONDS",
@@ -147,6 +158,8 @@ class Settings(BaseSettings):
     AGORA_MORGAN_AGENT_RTC_UID: str = ""
     AGORA_MORGAN_LLM_MODE: Literal["studio", "managed"] = "studio"
     AGORA_MORGAN_MANAGED_MODEL: Literal["gpt-4o-mini", "gpt-4.1-mini", "gpt-5-nano", "gpt-5-mini"] = "gpt-4.1-mini"
+    AGORA_TAYLOR_LLM_MODE: Literal["studio", "managed"] = "managed"
+    AGORA_TAYLOR_MANAGED_MODEL: Literal["gpt-4o-mini", "gpt-4.1-mini", "gpt-5-nano", "gpt-5-mini"] = "gpt-4.1-mini"
     VOICE_ASSISTANT_PUBLIC_URL: str = ""
     VOICE_ASSISTANT_SESSION_SECONDS: int = 1800
     VOICE_ASSISTANT_IDLE_SECONDS: int = 90
@@ -161,6 +174,9 @@ class Settings(BaseSettings):
     NEO4J_USERNAME: str = ""
     NEO4J_PASSWORD: str = ""
     NEO4J_DATABASE: str = "neo4j"
+
+    # Agora NCS signature key; distinct from Custom LLM bearer credentials.
+    AGORA_NOTIFICATION_SECRET: str = Field(default="", repr=False)
 
 
 settings = Settings()  # type: ignore[call-arg]

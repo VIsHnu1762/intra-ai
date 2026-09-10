@@ -369,6 +369,8 @@ async def test_finish_is_idempotent_and_get_returns_saved_result_without_officia
     monkeypatch.setattr(interview_session_store, "get_or_create", MagicMock(side_effect=AssertionError("No official store")))
     env = voice_env
     native_feedback(env.agora)
+    # This fake materializes absent tables on read; include the new read-only profile table.
+    env.db.rows.setdefault("candidate_profiles", [])
     original_rows = deepcopy(env.db.rows)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=env.app), base_url="http://test") as client:
         start = await client.post("/api/v1/voice/taylor/sessions", headers=browser_headers(), json={})

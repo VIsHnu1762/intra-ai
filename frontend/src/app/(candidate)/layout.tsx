@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import CandidateNav from "@/components/layout/candidate-nav";
 import { useAuth } from "@/context/AuthContext";
+import Link from "next/link";
+import { OnboardingNotice } from "@/features/candidate-onboarding/components/onboarding-notice";
 
 export default function CandidateLayout({
   children,
@@ -72,7 +74,13 @@ export default function CandidateLayout({
 
       {/* Page content */}
       <main className="flex-1">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-8">{children}</div>
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
+          {!isHr && !isPublicInterview && <nav aria-label="Candidate tools" className="mb-6 flex flex-wrap gap-4 text-sm text-brand">
+            <Link href="/portal">Applications</Link><Link href="/profile">My profile</Link>
+          </nav>}
+          {!isHr && pathname === "/portal" && <OnboardingNotice />}
+          {children}
+        </div>
       </main>
 
       {/* Footer */}

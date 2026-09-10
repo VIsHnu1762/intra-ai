@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { IAgoraRTCClient, IMicrophoneAudioTrack, IRemoteAudioTrack, IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
 import { ApiError } from "@/lib/api/client";
 import { completePracticeFeedback, releasePracticeAudio, createPracticeLatencyTracker, type TaylorPracticeFeedback, type TaylorPracticeOptions } from "@/lib/taylor-practice";
-import { voiceAssistantsApi, type VoiceAgent, type VoiceContext, type VoicePendingAction, type VoiceTranscriptEntry, type VoiceToolResult } from "@/lib/api/voice-assistants";
+import { voiceAssistantsApi, type VoiceAgent, type VoiceContext, type VoiceCredentials, type VoicePendingAction, type VoiceTranscriptEntry, type VoiceToolResult } from "@/lib/api/voice-assistants";
 import { createAudioLifecycle, createIdempotentAudioPlayer } from "@/lib/agora-audio-lifecycle";
 import { reconcileMorganActionSnapshot } from "@/lib/morgan-workflows";
 import { emptyVoiceConnection, voiceMediaError, voiceState, parseVoiceTranscript, mergeVoiceTranscript, type VoiceConnection } from "@/lib/voice-assistant-state";
@@ -134,7 +134,18 @@ export function useVoiceAssistant(agent: VoiceAgent) {
       if (!current.scope.own(() => { microphone.stop(); microphone.close(); })) return;
       current.microphone = microphone;
       microphone.on("track-ended", () => { if (active()) void end("Your microphone disconnected. Reconnect it, then start a new session."); });
-      const credentials = await voiceAssistantsApi.start(agent, context, practice);
+      let credentials: VoiceCredentials;
+      try {
+        credentials = await voiceAssistantsApi.start(agent, context, practice);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409 && (err.message.includes("active session") || err.message.includes("End it before starting another"))) {
+          console.info("[VOICE_RECOVERING_ACTIVE_SESSION]", { agent });
+          try { await voiceAssistantsApi.endActive(agent); } catch { /* best effort */ }
+          credentials = await voiceAssistantsApi.start(agent, context, practice, true);
+        } else {
+          throw err;
+        }
+      }
       current.id = credentials.session_id;
       // A close/unmount while the start request is pending must also stop the late cloud agent.
       if (!active()) {
@@ -160,22 +171,33 @@ export function useVoiceAssistant(agent: VoiceAgent) {
         try {
           await client.subscribe(remote, "audio");
           if (!active()) return;
-          if (!remote.hasAudio) return;
-          if (!remote.audioTrack) throw new Error("Missing audio track");
           const track = remote.audioTrack;
-          if (current.remote && current.remote !== track) current.remote.stop();
-          current.remote = track;
-          current.scope.own(() => track.stop());
+          if (!track) {
+            // Track may arrive slightly after subscribe — wait briefly and retry once.
+            await new Promise(resolve => setTimeout(resolve, 500));
+            if (!active()) return;
+          }
+          const finalTrack = remote.audioTrack;
+          if (!finalTrack) throw new Error("Missing audio track after subscribe");
+          if (current.remote && current.remote !== finalTrack) current.remote.stop();
+          current.remote = finalTrack;
+          current.scope.own(() => finalTrack.stop());
           patch({ audioSubscribed: true }); log("AUDIO_SUBSCRIBED");
           try {
-            await play.current(track);
-            if (active()) { patch({ playbackStarted: track.isPlaying }); log("PLAYBACK_REQUESTED"); }
+            await play.current(finalTrack);
+            if (active()) { patch({ playbackStarted: finalTrack.isPlaying }); log("PLAYBACK_REQUESTED"); }
           } catch { autoplayFailed(); }
         } catch {
           if (active()) void end("The assistant joined, but its audio could not be received. Please reconnect.");
         } finally { subscriptions.delete(String(remote.uid)); }
       };
-      client.on("user-joined", remote => { if (active() && isAgent(remote.uid)) { patch({ agentJoined: true }); log("AGENT_JOINED"); } });
+
+      client.on("user-joined", remote => {
+        if (!active() || !isAgent(remote.uid)) return;
+        patch({ agentJoined: true }); log("AGENT_JOINED");
+        // Agent may have already published audio before our listener attached.
+        if (remote.hasAudio) void subscribe(remote);
+      });
       client.on("user-published", (remote, mediaType) => { if (mediaType === "audio") void subscribe(remote); });
       client.on("user-unpublished", (remote, mediaType) => {
         if (active() && isAgent(remote.uid) && mediaType === "audio") {
@@ -244,10 +266,22 @@ export function useVoiceAssistant(agent: VoiceAgent) {
       await client.publish(microphone);
       if (!active()) return;
       patch({ microphonePublished: true }); log("MIC_PUBLISHED");
+      // Scan immediately for agents already in the channel before we joined.
       client.remoteUsers.forEach(remote => {
         if (isAgent(remote.uid)) patch({ agentJoined: true });
         if (remote.hasAudio) void subscribe(remote);
       });
+      // Polling fallback: scan every 1s for up to 20s for agents that joined
+      // but whose user-published event may have been missed due to timing.
+      let audioScanCount = 0;
+      const audioScanTimer = setInterval(() => {
+        if (!active() || current.remote) { clearInterval(audioScanTimer); return; }
+        if (++audioScanCount > 20) { clearInterval(audioScanTimer); return; }
+        client.remoteUsers.forEach(remote => {
+          if (isAgent(remote.uid) && remote.hasAudio && !current.remote) void subscribe(remote);
+        });
+      }, 1000);
+      current.scope.own(() => clearInterval(audioScanTimer));
       let pollBusy = false;
       let failedPolls = 0;
       const poll = async () => {
@@ -403,11 +437,22 @@ export function useVoiceAssistant(agent: VoiceAgent) {
     return () => { disposed = true; clearInterval(timer); };
   }, [agent, actionSession, showToolResult]);
 
+  const resetSession = useCallback(async () => {
+    try { await voiceAssistantsApi.endActive(agent); } catch { /* best effort */ }
+    await end();
+  }, [agent, end]);
+
   useEffect(() => {
     mounted.current = true;
     const leave = () => { void end(); };
     window.addEventListener("pagehide", leave);
-    return () => { mounted.current = false; window.removeEventListener("pagehide", leave); void end(); };
+    window.addEventListener("beforeunload", leave);
+    return () => {
+      mounted.current = false;
+      window.removeEventListener("pagehide", leave);
+      window.removeEventListener("beforeunload", leave);
+      void end();
+    };
   }, [end]);
-  return { connection, actionPending: Boolean(actionSession), state: voiceState(connection), transcript, pendingAction, toolResult, confirming, muted, sessionId, start, end, toggleMute, unlockAudio, confirm, markActivity, updateContext, finishPractice };
+  return { connection, actionPending: Boolean(actionSession), state: voiceState(connection), transcript, pendingAction, toolResult, confirming, muted, sessionId, start, end, resetSession, toggleMute, unlockAudio, confirm, markActivity, updateContext, finishPractice };
 }

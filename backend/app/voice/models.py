@@ -29,6 +29,7 @@ class StartVoiceSession(BaseModel):
     model_config = ConfigDict(extra="forbid")
     context: DashboardContext = Field(default_factory=DashboardContext)
     practice: PracticeOptions | None = None
+    force: bool = False
 
 
 class ConfirmVoiceAction(BaseModel):

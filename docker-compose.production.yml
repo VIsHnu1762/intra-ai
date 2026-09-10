@@ -1,0 +1,97 @@
+# One-host deployment preparation. Hosted Supabase and AuraDB remain external.
+x-runtime: &runtime
+  restart: unless-stopped
+  init: true
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+x-backend-environment: &backend-environment
+  APP_ENV: production
+  DEBUG: "false"
+  FRONTEND_URL: https://${APP_DOMAIN:?Set APP_DOMAIN}
+  API_BASE_URL: https://${API_DOMAIN:?Set API_DOMAIN}
+  VOICE_ASSISTANT_PUBLIC_URL: https://${API_DOMAIN:?Set API_DOMAIN}
+  REDIS_URL: redis://redis:6379/0
+  M1_PROVIDER: aicredits
+  ORCHESTRATOR_PROVIDER: aicredits
+
+services:
+  backend:
+    <<: *runtime
+    image: intra-ai-backend:production
+    build: {context: ./backend, target: production}
+    env_file: [./backend/.env]
+    environment: *backend-environment
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+    expose: ["8000"]
+    depends_on:
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8000/api/v1/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    <<: *runtime
+    image: intra-ai-backend:production
+    build: {context: ./backend, target: production}
+    command: ["python", "-m", "app.feature_runtime.worker"]
+    env_file: [./backend/.env]
+    environment: *backend-environment
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+    depends_on:
+      redis: {condition: service_healthy}
+
+  frontend:
+    <<: *runtime
+    image: intra-ai-frontend:production
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?Set API_DOMAIN}
+        NEXT_PUBLIC_AGORA_APP_ID: ${NEXT_PUBLIC_AGORA_APP_ID:-}
+        NEXT_PUBLIC_APP_ENV: production
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m", "/app/.next/cache:rw,nosuid,uid=1001,gid=1001,size=128m"]
+    expose: ["3000"]
+    depends_on:
+      backend: {condition: service_healthy}
+
+  redis:
+    <<: *runtime
+    image: redis:7-alpine
+    user: redis
+    command: ["redis-server", "--appendonly", "yes"]
+    read_only: true
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  proxy:
+    <<: *runtime
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443"]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN}
+    volumes:
+      - ./docker/production/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend: {condition: service_started}
+
+volumes:
+  redis_data:
+  caddy_data:
+  caddy_config:

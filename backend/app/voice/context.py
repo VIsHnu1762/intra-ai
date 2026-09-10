@@ -69,6 +69,12 @@ async def authorized_context(actor: auth.Actor, ids: DashboardContext, supabase,
             parsed = [r for r in parsed if application and r.get("application_id") == application["id"]]
         if parsed:
             result["cv_claims_not_verified_evidence"] = bounded(parsed[-1])
+    if persona == "taylor" and not ids.application_id and not ids.job_id and not ids.interview_id:
+        from app.candidate_onboarding.context import practice_profile
+        saved = await practice_profile(actor, supabase)
+        if saved:
+            result["cv_claims_not_verified_evidence"] = bounded(saved["profile"])
+            result["cv_provenance"] = {key: saved[key] for key in ("source", "resume_version_id", "version")}
     if application := rows.get("application"):
         result["application"] = {key: application.get(key) for key in
                                  ("id", "candidate_id", "job_id", "status")}
@@ -210,6 +216,20 @@ def taylor_greeting(first_name: str, context: dict[str, Any], practice: Practice
         return opening + "This is a practice session. What role are you preparing for?"
     topic = "one small project or class assignment" if practice.experience_level == "intern" else "a recent project"
     return opening + f"This is a practice session. Tell me about {topic} you've worked on."
+
+
+def morgan_greeting(first_name: str, context: dict[str, Any] | None = None) -> str:
+    # This is spoken text, not a prompt: keep names brief and omit markup.
+    name = "".join(c for c in first_name[:40] if c.isalpha() or c in "'-")
+    opening = f"Hi {name}, I'm Morgan. " if name else "Hi, I'm Morgan. "
+    ctx = context or {}
+    if ctx.get("job") and isinstance(ctx["job"], dict) and ctx["job"].get("title"):
+        title = str(ctx["job"]["title"]).strip()
+        return opening + f"How can I help with {title} today?"
+    if ctx.get("candidate") and isinstance(ctx["candidate"], dict) and ctx["candidate"].get("name"):
+        cand_name = str(ctx["candidate"]["name"]).strip()
+        return opening + f"How can I help with {cand_name}'s profile today?"
+    return opening + "How can I help with your recruiting workspace today?"
 
 
 def system_prompt(persona: str, first_name: str, context: dict[str, Any] | None = None) -> str:

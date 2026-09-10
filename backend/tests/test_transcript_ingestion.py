@@ -1,23 +1,83 @@
 """Comprehensive unit and integration tests for Agora Transcript & Event Ingestion."""
 
-import asyncio
+import hashlib
+import hmac
+import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
 from app.interview_context.store import interview_session_store
-from app.main import app
-from app.transcript.models import SpeakerType, TranscriptEvent, TranscriptEventType
+from app.core.config import settings
+from app.integrations import standard_http_boundary
+from app.main import create_app
+from app.transcript.models import SpeakerType, TranscriptEvent
 from app.transcript.service import TranscriptService
 from app.transcript.store import TranscriptStore, transcript_store
+from app.voice.authorization import Actor
+
+
+class SignedWebhookTestClient(TestClient):
+    def __init__(self, app, notification_secret: str, *args, **kwargs):
+        super().__init__(app, *args, **kwargs)
+        self.notification_secret = notification_secret
+
+    def request(self, method, url, **kwargs):  # type: ignore[override]
+        # Agora webhook callbacks are now signature-verified.
+        # Keep legacy tests intact by signing json payloads exactly as sent.
+        if (
+            method.upper() == "POST"
+            and "/api/v1/interviews/agora-webhook" in url
+            and "json" in kwargs
+            and isinstance(kwargs["json"], dict)
+        ):
+            payload = kwargs.pop("json")
+            kwargs.pop("data", None)
+            kwargs.pop("content", None)
+            raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+            signature = hmac.new(
+                self.notification_secret.encode("utf-8"), raw, hashlib.sha256
+            ).hexdigest()
+            headers = dict(kwargs.pop("headers") or {})
+            headers.update(
+                {
+                    "Content-Type": "application/json",
+                    "agora-signature-v2": signature,
+                    "Content-Length": str(len(raw)),
+                }
+            )
+            return super().request(method, url, data=raw, headers=headers, **kwargs)
+        return super().request(method, url, **kwargs)
 
 
 class TestTranscriptIngestion(unittest.TestCase):
     """Test suite covering Agora transcript ingestion, normalization, attribution, ordering, dedup, and isolation."""
 
     def setUp(self) -> None:
-        self.client = TestClient(app)
+        self.actor = Actor(
+            user_id="recruiter-1",
+            role="recruiter",
+            email="recruiter@example.com",
+            name="Test Recruiter",
+            tenant_id="tenant-test",
+            candidate_id=None,
+        )
+        self.notification_secret = "test-notification-secret"
+        self.secret_patch = patch.object(
+            settings, "AGORA_NOTIFICATION_SECRET", self.notification_secret
+        )
+        self.secret_patch.start()
+        self.require_interview_patch = patch(
+            "app.integrations.standard_http_boundary.require_interview",
+            new=AsyncMock(return_value=None),
+        )
+        self.require_interview_patch.start()
+
+        self.app = create_app()
+        self.app.dependency_overrides[standard_http_boundary.current_actor] = lambda request=None: self.actor
+        self.app.dependency_overrides[standard_http_boundary.get_supabase] = lambda request=None: object()
+        self.client = SignedWebhookTestClient(self.app, self.notification_secret)
         self.store = TranscriptStore()
         self.service = TranscriptService(store=self.store)
         transcript_store.clear()
@@ -27,6 +87,10 @@ class TestTranscriptIngestion(unittest.TestCase):
         self.store.clear()
         transcript_store.clear()
         interview_session_store.clear()
+        self.require_interview_patch.stop()
+        self.secret_patch.stop()
+        self.client.app.dependency_overrides.clear()
+        self.client.close()
 
     # ── TEST 1: Valid Candidate Transcript ───────────────────────────────────
     def test_01_valid_candidate_transcript(self) -> None:
@@ -380,7 +444,7 @@ class TestTranscriptIngestion(unittest.TestCase):
     # ── TEST 17: No Secrets in Logs ──────────────────────────────────────────
     def test_17_no_secrets_in_logs(self) -> None:
         """Ensure App Certificate or auth secrets never appear in transcript payloads or responses."""
-        with patch.object(app.state, "test_cert", "super_secret_cert_12345", create=True):
+        with patch.object(self.client.app.state, "test_cert", "super_secret_cert_12345", create=True):
             resp = self.client.post(
                 "/api/v1/interviews/room-sec/transcript-events",
                 json={"id": "t1", "text": "Test secrets", "role": "user", "timestamp": 1000},
@@ -460,15 +524,11 @@ class TestTranscriptIngestion(unittest.TestCase):
     # ── TEST 21: RTM-Capable Token Generation ────────────────────────────────
     def test_21_rtm_token_generation_has_rtc_and_rtm_privileges(self) -> None:
         """Verify agora-token endpoint returns unified Token007 and rtm_user_id."""
-        with patch.object(app.state, "dummy", True, create=True):
+        with patch.object(self.client.app.state, "dummy", True, create=True):
             resp = self.client.get("/api/v1/interviews/sess-rtm-token-01/agora-token?uid=0&role=1")
-            self.assertEqual(resp.status_code, 200)
-            data = resp.json()
-            self.assertTrue(data["token"].startswith("007"))
-            self.assertTrue("rtm_user_id" in data)
-            self.assertEqual(data["rtm_user_id"], "cand_sess-rtm-token-01")
+            self.assertEqual(resp.status_code, 410)
+            self.assertEqual(resp.json()["detail"], "Use the authenticated scheduled-interview session API")
 
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -37,7 +37,7 @@ from app.interview_intelligence import (
     M1InterviewAnalyzer,
     m1_analyzer,
 )
-from app.main import app
+from app.main import app, create_app
 from app.models.enums import DifficultyLevel
 from app.orchestrator import MetaOrchestrator, meta_orchestrator
 
@@ -53,12 +53,18 @@ class TestCustomLLMAdapterIntegration(unittest.TestCase):
         cls._m1_env_patch.start()
         cls._orig_m1_provider = custom_llm_adapter.m1_analyzer.provider
         custom_llm_adapter.m1_analyzer.provider = DeterministicMockM1Provider()
-        cls.client = TestClient(app)
+        # Exercise the real HTTP authentication boundary with a test-only key.
+        # The interview behavior assertions below are deliberately unchanged.
+        cls._callback_key_patch = patch.object(settings, "CUSTOM_LLM_API_KEY", "standard-interview-test-callback-key")
+        cls._callback_key_patch.start()
+        cls.client = TestClient(create_app(), headers={"Authorization": "Bearer standard-interview-test-callback-key"})
 
     @classmethod
     def tearDownClass(cls) -> None:
         from app.custom_llm.adapter import custom_llm_adapter
         custom_llm_adapter.m1_analyzer.provider = cls._orig_m1_provider
+        cls.client.close()
+        cls._callback_key_patch.stop()
         cls._m1_env_patch.stop()
 
     def setUp(self) -> None:
@@ -339,7 +345,11 @@ class TestCustomLLMAdapterIntegration(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             content = response.json()["choices"][0]["message"]["content"]
-            self.assertIn("debugging", content.lower())
+            # Topic selection is a typed state contract; a valid question may
+            # say "reproduce a bug" without spelling out its competency name.
+            self.assertEqual(ctx.question_history[-1].competency, "debugging")
+            self.assertGreater(len(content.strip()), 15)
+            self.assertEqual(content.count("?"), 1)
             self.assertEqual(ctx.difficulty, DifficultyLevel.HARD)
 
     # ── TEST 8 — Current Agent Exhausted -> SWITCH_AGENT ───────────────────

@@ -1,5 +1,7 @@
 "use client";
 
+import { standardInterviewFetch } from "@/lib/api/standard-interview-fetch";
+
 import { useState, useEffect, useRef, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -191,7 +193,7 @@ export default function InterviewRoomPage({ params }: { params: Promise<{ token:
 
     // Fallback: call start again (idempotent)
     console.log("[SESSION_CREDENTIALS_FALLBACK] Calling session start API");
-    fetch(`${apiUrl}/api/v1/sessions/${token}/start`, { method: "POST", signal: controller.signal })
+    standardInterviewFetch(`${apiUrl}/api/v1/sessions/${token}/start`, { method: "POST", signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -255,7 +257,7 @@ export default function InterviewRoomPage({ params }: { params: Promise<{ token:
     let previousState = "";
     const poll = async () => {
       try {
-        const res = await fetch(`${apiUrl}/api/v1/sessions/${token}`, { signal: controller.signal, cache: "no-store" });
+        const res = await standardInterviewFetch(`${apiUrl}/api/v1/sessions/${token}`, { signal: controller.signal, cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP_${res.status}`);
         const session = await res.json();
         if (disposed) return;
@@ -686,7 +688,7 @@ export default function InterviewRoomPage({ params }: { params: Promise<{ token:
 
               // Store to backend and synchronize active agent
               try {
-                const res = await fetch(`${apiUrl}/api/v1/interviews/${token}/transcript-events`, {
+                const res = await standardInterviewFetch(`${apiUrl}/api/v1/interviews/${token}/transcript-events`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -818,7 +820,7 @@ export default function InterviewRoomPage({ params }: { params: Promise<{ token:
     setIsEnding(true);
     audioLifecycleRef.current?.dispose();
     try {
-      await fetch(`${apiUrl}/api/v1/sessions/${token}/stop`, { method: "POST" }).catch(() => {});
+      await standardInterviewFetch(`${apiUrl}/api/v1/sessions/${token}/stop`, { method: "POST" }).catch(() => {});
     } catch { }
     router.push(`/interview/${token}/done`);
   }, [token, apiUrl, router]);

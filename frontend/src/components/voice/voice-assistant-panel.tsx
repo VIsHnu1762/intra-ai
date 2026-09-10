@@ -105,6 +105,7 @@ export function VoiceAssistantPanel({ assistant, name, compact = false, onStart,
           <Button variant="danger" onClick={onEnd || (() => void assistant.end())}><PhoneOff className="h-4 w-4" />{endLabel || `End ${name === "Taylor" ? "Training" : "Session"}`}</Button>
         </>}
         {!active && connection.error?.includes("Retry ending") && <Button variant="secondary" onClick={() => void assistant.end()}>Retry End Session</Button>}
+        {!active && /active session/i.test(connection.error || "") && <Button variant="secondary" onClick={() => void assistant.resetSession()}>End Previous Session</Button>}
       </div>
 
       {name === "Morgan" && assistant.actionPending && !active && <p role="status" className="text-xs text-text-muted">Your confirmed action is still being checked. Its result will appear here.</p>}

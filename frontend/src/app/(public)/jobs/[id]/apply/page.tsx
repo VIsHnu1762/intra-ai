@@ -14,6 +14,9 @@ import { useApplyToJob } from "@/hooks/queries/useApplications";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { useMutation } from "@tanstack/react-query";
+import { onboardingApi, type ResumeVersion } from "@/features/candidate-onboarding/api";
+import { SavedResumePicker } from "@/features/candidate-onboarding/components/saved-resume-picker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +79,8 @@ export default function ApplyPage({
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [savedResume, setSavedResume] = useState<ResumeVersion | null>(null);
+  const profileApplication = useMutation({ mutationFn: (details: Parameters<typeof onboardingApi.apply>[1]) => onboardingApi.apply(id, details) });
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   // Prefill authenticated candidate details (P4-005)
@@ -110,7 +115,7 @@ export default function ApplyPage({
   };
 
   const validateStep2 = (): boolean => {
-    if (!resumeFile) {
+    if (!resumeFile && !savedResume) {
       setErrors({ resume: "Please upload your resume (PDF or DOCX)" });
       return false;
     }
@@ -135,7 +140,7 @@ export default function ApplyPage({
   // ─── Submit Handler (P4-007) ────────────────────────────────────────────────
 
   const handleSubmit = async () => {
-    if (!resumeFile) {
+    if (!resumeFile && !savedResume) {
       setCurrentStep(2);
       setErrors({ resume: "Please upload your resume before submitting" });
       return;
@@ -144,13 +149,20 @@ export default function ApplyPage({
     setSubmissionError(null);
 
     try {
-      const res = await applyMutation.mutateAsync({
+      const res = savedResume ? await profileApplication.mutateAsync({
+        resume_version_id: savedResume.id, phone: form.phone.trim(),
+        years_experience: parseInt(form.yearsOfExperience, 10) || 0,
+        current_role: form.currentRole.trim() || undefined, current_company: form.currentCompany.trim() || undefined,
+        expected_salary_min: form.expectedSalary ? parseFloat(form.expectedSalary) : undefined,
+        expected_salary_max: form.expectedSalary ? parseFloat(form.expectedSalary) : undefined,
+        linkedin_url: form.linkedinUrl.trim() || undefined,
+      }) : await applyMutation.mutateAsync({
         jobId: id,
         name: form.fullName.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim(),
         yearsExperience: parseInt(form.yearsOfExperience, 10) || 0,
-        resumeFile: resumeFile,
+        resumeFile: resumeFile!,
         currentRole: form.currentRole.trim() || undefined,
         currentCompany: form.currentCompany.trim() || undefined,
         expectedSalaryMin: form.expectedSalary ? parseFloat(form.expectedSalary) : undefined,
@@ -395,6 +407,7 @@ export default function ApplyPage({
               </p>
             </div>
 
+            <SavedResumePicker selected={Boolean(savedResume)} onSelect={setSavedResume} />
             <FileUpload
               label="Resume Document Dropzone"
               description="Drag & drop your PDF or DOCX resume here, or browse files"
@@ -405,6 +418,7 @@ export default function ApplyPage({
               currentFile={resumeFile}
               onFileSelect={(file) => {
                 setResumeFile(file);
+                setSavedResume(null);
                 setErrors((prev) => ({ ...prev, resume: undefined }));
               }}
               onClearFile={() => setResumeFile(null)}
@@ -498,7 +512,7 @@ export default function ApplyPage({
                 </button>
               </div>
 
-              {resumeFile ? (
+              {savedResume ? <p className="text-xs font-medium">Saved profile: {savedResume.filename} (v{savedResume.version})</p> : resumeFile ? (
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-text-primary">{resumeFile.name}</span>
                   <Badge variant="outline" className="text-[11px]">
@@ -520,16 +534,16 @@ export default function ApplyPage({
                 type="button"
                 variant="secondary"
                 onClick={goBack}
-                disabled={applyMutation.isPending}
+                disabled={applyMutation.isPending || profileApplication.isPending}
               >
                 Back
               </Button>
               <Button
                 type="button"
                 onClick={handleSubmit}
-                disabled={applyMutation.isPending}
+                disabled={applyMutation.isPending || profileApplication.isPending}
               >
-                {applyMutation.isPending ? "Submitting Application..." : "Confirm & Submit Application"}
+                {applyMutation.isPending || profileApplication.isPending ? "Submitting Application..." : "Confirm & Submit Application"}
               </Button>
             </div>
           </CardContent>

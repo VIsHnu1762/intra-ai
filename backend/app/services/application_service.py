@@ -49,6 +49,7 @@ class ApplicationService:
         expected_salary_min: float | None = None,
         expected_salary_max: float | None = None,
         linkedin_url: str | None = None,
+        parsed_profile: dict[str, Any] | None = None,
     ) -> ApplicationResponse:
         """Process a new application: upload resume, create candidate, create application."""
         email = email.strip().lower()
@@ -173,13 +174,18 @@ class ApplicationService:
             from app.services.resume_service import ResumeService
 
             resume_service = ResumeService(self._app_repo, InterviewRepo(self._app_repo._sb))
-            await resume_service.parse_resume_content(
-                application_id=app_id,
-                candidate_id=candidate_id,
-                content=resume_bytes,
-                filename=resume_file.filename,
-                content_type=resume_file.content_type,
-            )
+            if parsed_profile is not None:
+                # Only the authenticated onboarding service supplies a saved,
+                # validated profile. Application snapshots stay immutable on replacement.
+                await resume_service._store_parsed_resume(app_id, candidate_id, "", parsed_profile)
+            else:
+                await resume_service.parse_resume_content(
+                    application_id=app_id,
+                    candidate_id=candidate_id,
+                    content=resume_bytes,
+                    filename=resume_file.filename,
+                    content_type=resume_file.content_type,
+                )
             await EligibilityService(self._app_repo, self._job_repo).check_eligibility(app_id)
         except Exception as exc:
             try:

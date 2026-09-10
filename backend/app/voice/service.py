@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.core.exceptions import AppError, ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.voice import authorization as auth
 from app.voice.agora import AgoraProjectConfig, TrainingHRAgoraService, AuxiliaryAgoraError
-from app.voice.context import authorized_context, system_prompt, taylor_prompt, taylor_greeting
+from app.voice.context import authorized_context, system_prompt, taylor_prompt, taylor_greeting, morgan_greeting
 from app.voice.models import DashboardContext, PracticeOptions, VoiceSession, utc_now
 from app.voice.security import issue_mcp_token
 from app.voice.store import VoiceSessionStore, RedisPendingStore
@@ -55,7 +55,7 @@ class VoiceAssistantService:
         return value + "/api/v1/voice/mcp"
 
     async def start(self, persona: str, claims: dict, ids: DashboardContext,
-                    practice: PracticeOptions | None = None) -> dict:
+                    practice: PracticeOptions | None = None, force: bool = False) -> dict:
         if persona not in {"taylor", "morgan"}:
             raise NotFoundError("Voice assistant not found")
         actor = await auth.identity(claims, self.sb)
@@ -70,8 +70,8 @@ class VoiceAssistantService:
             for sid in await self.store.active_ids():
                 existing = await self.store.get(sid)
                 if existing and existing.user_id == actor.user_id and existing.persona == persona:
-                    if existing.expires_at <= utc_now() or existing.status == "ERROR":
-                        await self._end(existing, "expired")
+                    if force or existing.expires_at <= utc_now() or existing.status == "ERROR":
+                        await self._end(existing, "replaced" if force else "expired")
                     elif existing.status in {"CONNECTING", "CONNECTED", "EXECUTING"}:
                         raise ConflictError("This assistant already has an active session. End it before starting another.")
             sid = str(uuid4())
@@ -94,7 +94,8 @@ class VoiceAssistantService:
                 options = {"system_prompt": prompt, "expires_in": ttl}
                 if persona == "morgan":
                     options.update(mcp_endpoint=endpoint, mcp_authorization="Bearer " + issue_mcp_token(session),
-                                   allowed_tools=self.allowed_tools(persona))
+                                   allowed_tools=self.allowed_tools(persona),
+                                   greeting_message=morgan_greeting(first_name, context))
                     logger.info("morgan_context_preloaded", session_id=sid,
                                 selected_resources=[kind for kind in ("candidate", "application", "job", "interview") if kind in context],
                                 prompt_characters=len(prompt))
@@ -229,6 +230,19 @@ class VoiceAssistantService:
             visible = session.public()
             visible["last_tool_result"] = None
             return visible
+
+    async def end_active(self, persona: str, claims: dict) -> dict:
+        if persona not in {"taylor", "morgan"}:
+            raise NotFoundError("Voice assistant not found")
+        actor = await auth.identity(claims, self.sb)
+        ended = []
+        async with self.store.lock("start:" + actor.user_id + ":" + persona):
+            for sid in await self.store.active_ids():
+                existing = await self.store.get(sid)
+                if existing and existing.user_id == actor.user_id and existing.persona == persona:
+                    await self._end(existing, "user_reset")
+                    ended.append(sid)
+        return {"status": "ok", "ended_sessions": ended}
 
     @staticmethod
     def _feedback_pending(session: VoiceSession) -> bool:

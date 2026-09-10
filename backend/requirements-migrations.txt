@@ -1,0 +1,2 @@
+# Operator-only dependency; the application data path remains the Supabase SDK.
+psycopg[binary]>=3.2,<4

@@ -24,6 +24,9 @@ const NAV_ITEMS = [
   { label: "Candidates", href: "/admin/candidates", icon: Users },
   { label: "Interviews", href: "/admin/interviews", icon: Video },
   { label: "Reports", href: "/admin/reports", icon: FileText },
+  { label: "Company knowledge", href: "/admin/company-knowledge", icon: FileText },
+  { label: "Role-play", href: "/admin/role-play", icon: Video },
+  { label: "Group discussions", href: "/admin/group-discussions", icon: Users },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

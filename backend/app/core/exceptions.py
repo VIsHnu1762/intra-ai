@@ -99,7 +99,8 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled_error_handler(_request: Request, exc: Exception) -> JSONResponse:
-        logger.exception("unhandled_error", error=str(exc))
+        # Provider/database exceptions can include connection URLs or raw payloads.
+        logger.error("unhandled_error", error_type=type(exc).__name__)
         return JSONResponse(
             status_code=500,
             content=_build_body("INTERNAL_ERROR", "An unexpected error occurred"),
