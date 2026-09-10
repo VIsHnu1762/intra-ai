@@ -267,24 +267,20 @@ class TrainingHRAgoraService:
             # Normal practice uses its already-loaded CV context and native LLM.
             properties["advanced_features"]["enable_tools"] = False
             llm["mcp_servers"] = []
-        managed_agent = (
-            (agent_type == "morgan" and self.project.morgan_llm_mode == "managed")
-            or (agent_type == "taylor" and self.project.taylor_llm_mode == "managed")
-        )
-        managed_model = self.project.morgan_managed_model if agent_type == "morgan" else self.project.taylor_managed_model
-        if managed_agent:
+        managed_morgan = agent_type == "morgan" and self.project.morgan_llm_mode == "managed"
+        if managed_morgan:
             # Agora supplies the model credential. Keep the saved ASR/TTS and
             # this session's prompt/MCP settings; never borrow an official key.
             # https://docs.agora.io/en/ai/models/llm/openai
             llm.update(credential_mode="managed", vendor="openai", style="openai",
                        url="https://api.openai.com/v1/chat/completions",
-                       params={"model": managed_model}, max_history=32)
+                       params={"model": self.project.morgan_managed_model}, max_history=32)
         if llm:
             properties["llm"] = llm
         result = await self._request("POST", "join", authorization=self._authorization(agent_token),
             payload={"name": session_name, "pipeline_id": agent.pipeline_id, "properties": properties})
         safe = self._safe_result(result, channel)
-        if managed_agent:
+        if managed_morgan:
             try:
                 # Join merges saved custom proxy params. Update replaces the
                 # entire params object and removes those incompatible fields.
@@ -292,7 +288,7 @@ class TrainingHRAgoraService:
                 # https://docs.agora.io/en/api-reference/api-ref/conversational-ai/update
                 path, authorization = self._agent_request(agent_type, channel, safe["agent_id"])
                 updated = await self._request("POST", f"{path}/update", authorization=authorization,
-                    payload={"properties": {"llm": {"params": {"model": managed_model}}}})
+                    payload={"properties": {"llm": {"params": {"model": self.project.morgan_managed_model}}}})
                 safe = self._safe_result(updated, channel, expected_id=safe["agent_id"])
             except BaseException:
                 # This agent has not yet been handed to VoiceAssistantService,
@@ -300,7 +296,7 @@ class TrainingHRAgoraService:
                 try:
                     await asyncio.shield(self.stop_agent(agent_type, channel, safe["agent_id"]))
                 except Exception:
-                    _logger.error("%s_managed_start_cleanup_pending agent_id=%s", agent_type, safe["agent_id"])
+                    _logger.error("morgan_managed_start_cleanup_pending agent_id=%s", safe["agent_id"])
                 raise
         return safe
 
