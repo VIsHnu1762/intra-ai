@@ -115,29 +115,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Initial session restoration
   useEffect(() => {
-    const existingToken = getAuthToken();
-    if (existingToken && !isTokenExpired(existingToken)) {
-      setToken(existingToken);
+    queueMicrotask(() => {
+      const existingToken = getAuthToken();
+      if (existingToken && !isTokenExpired(existingToken)) {
+        setToken(existingToken);
 
-      // Restore user from localStorage if present
-      try {
-        const cachedUserStr = localStorage.getItem(AUTH_USER_KEY);
-        if (cachedUserStr) {
-          const cachedUser = JSON.parse(cachedUserStr) as User;
-          setUser(cachedUser);
+        // Restore user from localStorage if present
+        try {
+          const cachedUserStr = localStorage.getItem(AUTH_USER_KEY);
+          if (cachedUserStr) {
+            const cachedUser = JSON.parse(cachedUserStr) as User;
+            setUser(cachedUser);
+          }
+        } catch {
+          // Ignore
         }
-      } catch {
-        // Ignore
-      }
 
-      // Proactively refresh the session to get updated user data
-      refreshSession().finally(() => {
+        // Proactively refresh the session to get updated user data
+        refreshSession().finally(() => {
+          setIsLoading(false);
+        });
+      } else {
+        clearAuthToken();
         setIsLoading(false);
-      });
-    } else {
-      clearAuthToken();
-      setIsLoading(false);
-    }
+      }
+    });
   }, [refreshSession]);
 
   // Subscribe to 401 unauthorized signals from apiClient

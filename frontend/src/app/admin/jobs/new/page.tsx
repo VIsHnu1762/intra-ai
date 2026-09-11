@@ -532,7 +532,7 @@ export default function NewJobPage() {
                 <div className="pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-bg/40 p-3 rounded-lg">
                   <div>
                     <p className="text-xs font-medium text-text-primary">
-                      Don't have a document ready?
+                      Don&apos;t have a document ready?
                     </p>
                     <p className="text-[11px] text-text-muted">
                       You can skip document upload and define the opportunity specifications manually.

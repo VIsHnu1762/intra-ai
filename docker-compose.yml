@@ -65,7 +65,7 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=http://localhost:8000
-        - NEXT_PUBLIC_AGORA_APP_ID=acbcfc97ea094e3681d46fe8da21e4d1
+        - NEXT_PUBLIC_AGORA_APP_ID=${NEXT_PUBLIC_AGORA_APP_ID:-a71666df598e499992a0ee5499dc7dcf}
         - NEXT_PUBLIC_APP_ENV=development
     container_name: intra_ai_frontend
     ports:

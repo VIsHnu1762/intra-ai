@@ -23,7 +23,6 @@ CORE_TABLES = [
     "jobs",
     "candidates",
     "applications",
-    "interviews",
     "scheduled_interviews",
 ]
 

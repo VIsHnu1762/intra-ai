@@ -33,11 +33,15 @@ export function formatApiErrorMessage(error: unknown, fallback: string = "An une
     }
 
     if (error.status === 401) {
-      return "Your session has expired. Please sign in again.";
+      return error.message && !error.message.startsWith("HTTP Error")
+        ? error.message
+        : "Your session has expired. Please sign in again.";
     }
 
     if (error.status === 403) {
-      return "You do not have permission to perform this action.";
+      return error.message && !error.message.startsWith("HTTP Error")
+        ? error.message
+        : "You do not have permission to perform this action.";
     }
 
     if (error.status === 404) {

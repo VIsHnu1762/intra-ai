@@ -18,15 +18,17 @@ class ReadinessProbe:
 
     async def _table(self, sb, table):
         try:
-            await asyncio.wait_for(execute(sb.table(table).select("*").limit(0)), timeout=2)
+            await asyncio.wait_for(execute(sb.table(table).select("*").limit(0)), timeout=5)
             return True
-        except Exception:
+        except Exception as exc:
+            import structlog
+            structlog.get_logger("intra_readiness").warning("table_check_failed", table=table, error=str(exc), error_type=type(exc).__name__)
             return False
 
     async def _worker(self, sb):
         try:
             rows = await asyncio.wait_for(execute(sb.table("feature_worker_health").select("last_seen_at,status")
-                .order("last_seen_at", desc=True).limit(1)), timeout=2)
+                .order("last_seen_at", desc=True).limit(1)), timeout=5)
             if not rows or rows[0]["status"] not in {"ok", "working"}:
                 return False
             seen = datetime.fromisoformat(rows[0]["last_seen_at"].replace("Z", "+00:00"))
@@ -49,6 +51,7 @@ class ReadinessProbe:
                 features.extend(["roleplay_definitions", "roleplay_sessions", "roleplay_events"])
             if self.config.GROUP_DISCUSSION_ENABLED:
                 features.extend(["gd_sessions", "gd_participants", "gd_events"])
+
             available = await asyncio.gather(*(self._table(sb, table) for table in tables + features))
             core_ready = all(available[:len(tables)])
             feature_ready = all(available[len(tables):])

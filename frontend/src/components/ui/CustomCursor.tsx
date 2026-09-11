@@ -1,6 +1,20 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useSyncExternalStore } from "react";
+
+function subscribePointer(callback: () => void) {
+  const media = window.matchMedia("(pointer: fine)");
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+}
+
+function getPointerSnapshot() {
+  return window.matchMedia("(pointer: fine)").matches;
+}
+
+function getServerSnapshot() {
+  return false;
+}
 
 export default function CustomCursor() {
   const dotRef = useRef<HTMLDivElement>(null);
@@ -9,25 +23,10 @@ export default function CustomCursor() {
 
   const [cursorMode, setCursorMode] = useState<"default" | "cta" | "alex" | "jordan" | "demo">("default");
   const [isVisible, setIsVisible] = useState(false);
-  const [isFinePointer, setIsFinePointer] = useState(() => {
-    if (typeof window !== "undefined") {
-      return window.matchMedia("(pointer: fine)").matches;
-    }
-    return false;
-  });
+  const isFinePointer = useSyncExternalStore(subscribePointer, getPointerSnapshot, getServerSnapshot);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const media = window.matchMedia("(pointer: fine)");
-    const handleMediaChange = (e: MediaQueryListEvent) => {
-      setIsFinePointer(e.matches);
-    };
-    media.addEventListener("change", handleMediaChange);
-
-    if (!media.matches) {
-      return () => media.removeEventListener("change", handleMediaChange);
-    }
+    if (!isFinePointer) return;
 
     let mouseX = -100;
     let mouseY = -100;
@@ -86,13 +85,12 @@ export default function CustomCursor() {
     rafId = requestAnimationFrame(animateRing);
 
     return () => {
-      media.removeEventListener("change", handleMediaChange);
       window.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseleave", onMouseLeave);
       document.removeEventListener("mouseenter", onMouseEnter);
       cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [isFinePointer]);
 
   if (!isFinePointer) return null;
 

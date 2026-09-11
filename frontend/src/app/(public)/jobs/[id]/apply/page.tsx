@@ -86,11 +86,13 @@ export default function ApplyPage({
   // Prefill authenticated candidate details (P4-005)
   useEffect(() => {
     if (user) {
-      setForm((prev) => ({
-        ...prev,
-        fullName: prev.fullName || user.name || "",
-        email: prev.email || user.email || "",
-      }));
+      queueMicrotask(() => {
+        setForm((prev) => ({
+          ...prev,
+          fullName: prev.fullName || user.name || "",
+          email: prev.email || user.email || "",
+        }));
+      });
     }
   }, [user]);
 

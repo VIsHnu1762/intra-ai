@@ -212,12 +212,12 @@ function ApplicationCard({ app }: { app: BackendApplicationResponse }) {
 
   useEffect(() => {
     if (app.meeting_mode !== "instant" || app.instant_status !== "instant_pending" || !app.instant_deadline) {
-      setInstantExpired(false);
+      queueMicrotask(() => setInstantExpired(false));
       return;
     }
     const expiresAt = new Date(app.instant_deadline).getTime();
     const update = () => setInstantExpired(expiresAt <= Date.now());
-    update();
+    queueMicrotask(update);
     const remaining = expiresAt - Date.now();
     if (remaining <= 0) return;
     const timer = window.setTimeout(update, remaining + 50);
