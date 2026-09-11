@@ -148,12 +148,12 @@ def get_jordan_agora_mapping() -> AgoraAgentMapping:
     project_id = (
         getattr(settings, "AGORA_JORDAN_PROJECT_ID", "")
         or getattr(settings, "AGORA_ALEX_PROJECT_ID", "")
-        or "acbcfc97ea094e3681d46fe8da21e4d1"
+        or "a71666df598e499992a0ee5499dc7dcf"
     )
     pipeline_id = (
         getattr(settings, "AGORA_CUSTOM_LLM_PIPELINE_ID", "").strip()
         or getattr(settings, "AGORA_JORDAN_PIPELINE_ID", "")
-        or "642bb4345fa244099a78a50cede2d7d3"
+        or "682bbf59d8914e97a983e40a3dab895a"
     )
     llm_url = (
         getattr(settings, "CUSTOM_LLM_URL", "")

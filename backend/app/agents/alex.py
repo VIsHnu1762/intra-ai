@@ -113,12 +113,12 @@ def get_alex_agora_mapping() -> AgoraAgentMapping:
     """Build the Agora Agent Studio runtime mapping for Alex using current configuration settings."""
     project_id = (
         getattr(settings, "AGORA_ALEX_PROJECT_ID", "")
-        or "acbcfc97ea094e3681d46fe8da21e4d1"
+        or "a71666df598e499992a0ee5499dc7dcf"
     )
     pipeline_id = (
         getattr(settings, "AGORA_CUSTOM_LLM_PIPELINE_ID", "").strip()
         or getattr(settings, "AGORA_ALEX_PIPELINE_ID", "")
-        or "eb714d82ec524f14981e5b5f5108cbd1"
+        or "6d40244417034eb4bdae42218f820a85"
     )
     llm_url = (
         getattr(settings, "CUSTOM_LLM_URL", "")
