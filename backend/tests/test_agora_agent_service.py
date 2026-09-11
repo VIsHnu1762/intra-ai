@@ -134,9 +134,9 @@ class TestAgoraAgentService(unittest.IsolatedAsyncioTestCase):
             call_kwargs = mock_http.post.call_args
             self.assertIn("conversational-ai-agent/v2/projects", call_kwargs[0][0])
             payload = call_kwargs[1]["json"]
-            self.assertEqual(payload["pipeline_id"], "eb714d82ec524f14981e5b5f5108cbd1")
+            self.assertEqual(payload["pipeline_id"], "6d40244417034eb4bdae42218f820a85")
             self.assertEqual(payload["properties"]["channel"], "interview-dyn-channel-101")
-            self.assertEqual(payload["properties"]["agent_rtc_uid"], "468707")
+            self.assertEqual(payload["properties"]["agent_rtc_uid"], "976535")
             self.assertNotIn("enable_rtm", payload["properties"])
             self.assertTrue(payload["properties"]["advanced_features"]["enable_rtm"])
             self.assertEqual(payload["properties"]["parameters"]["data_channel"], "rtm")
@@ -176,9 +176,9 @@ class TestAgoraAgentService(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["channel_name"], "interview-dyn-channel-202")
 
             payload = mock_http.post.call_args[1]["json"]
-            self.assertEqual(payload["pipeline_id"], "642bb4345fa244099a78a50cede2d7d3")
+            self.assertEqual(payload["pipeline_id"], "682bbf59d8914e97a983e40a3dab895a")
             self.assertEqual(payload["properties"]["channel"], "interview-dyn-channel-202")
-            self.assertEqual(payload["properties"]["agent_rtc_uid"], "654509")
+            self.assertEqual(payload["properties"]["agent_rtc_uid"], "247504")
             self.assertNotIn("enable_rtm", payload["properties"])
             self.assertTrue(payload["properties"]["advanced_features"]["enable_rtm"])
             self.assertEqual(payload["properties"]["parameters"]["data_channel"], "rtm")

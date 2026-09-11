@@ -88,8 +88,8 @@ class TestAgentRegistry(unittest.TestCase):
         mapping = agent_registry.get_agora_mapping("alex")
 
         self.assertIsInstance(mapping, AgoraAgentMapping)
-        self.assertEqual(mapping.project_id, "acbcfc97ea094e3681d46fe8da21e4d1")
-        self.assertEqual(mapping.pipeline_id, "eb714d82ec524f14981e5b5f5108cbd1")
+        self.assertEqual(mapping.project_id, "a71666df598e499992a0ee5499dc7dcf")
+        self.assertEqual(mapping.pipeline_id, "6d40244417034eb4bdae42218f820a85")
         self.assertEqual(mapping.asr_vendor, "deepgram")
         self.assertEqual(mapping.asr_model, "nova-3")
         self.assertEqual(mapping.llm_vendor, "openai")
@@ -105,7 +105,7 @@ class TestAgentRegistry(unittest.TestCase):
         # Also test composite helper get_agent
         prof, mapp = agent_registry.get_agent("alex")
         self.assertEqual(prof.agent_id, "alex")
-        self.assertEqual(mapp.project_id, "acbcfc97ea094e3681d46fe8da21e4d1")
+        self.assertEqual(mapp.project_id, "a71666df598e499992a0ee5499dc7dcf")
 
     # ── TEST 5 — Missing configuration ──────────────────────────────────────
     def test_05_missing_configuration_produces_deterministic_error(self) -> None:
@@ -246,7 +246,7 @@ class TestAgentRegistry(unittest.TestCase):
         self.assertEqual(payload["agent_token"], "test-token")
 
         props = payload["properties"]
-        self.assertEqual(props["pipeline_id"], "eb714d82ec524f14981e5b5f5108cbd1")
+        self.assertEqual(props["pipeline_id"], "6d40244417034eb4bdae42218f820a85")
         self.assertEqual(props["asr"]["vendor"], "deepgram")
         self.assertEqual(props["asr"]["params"]["model"], "nova-3")
         self.assertEqual(props["tts"]["vendor"], "openai")
@@ -279,7 +279,7 @@ class TestAgentRegistry(unittest.TestCase):
         self.assertIn("Senior Product Manager", profile.instructions)
 
         # Mapping checks
-        self.assertEqual(mapping.pipeline_id, "642bb4345fa244099a78a50cede2d7d3")
+        self.assertEqual(mapping.pipeline_id, "682bbf59d8914e97a983e40a3dab895a")
         self.assertEqual(mapping.asr_vendor, "deepgram")
         self.assertEqual(mapping.asr_model, "nova-3")
         self.assertEqual(mapping.asr_language, "en")
@@ -319,7 +319,7 @@ class TestAgentRegistry(unittest.TestCase):
         self.assertEqual(payload["agent_token"], "jordan-rtc-token")
 
         props = payload["properties"]
-        self.assertEqual(props["pipeline_id"], "642bb4345fa244099a78a50cede2d7d3")
+        self.assertEqual(props["pipeline_id"], "682bbf59d8914e97a983e40a3dab895a")
         self.assertEqual(props["tts"]["params"]["voice"], "nova")
         self.assertEqual(props["asr"]["vendor"], "deepgram")
         self.assertEqual(props["asr"]["params"]["model"], "nova-3")
@@ -350,8 +350,8 @@ class TestAgentRegistry(unittest.TestCase):
         jordan_prof, jordan_map = agent_registry.get_agent("jordan")
 
         # Distinct pipeline IDs
-        self.assertEqual(alex_map.pipeline_id, "eb714d82ec524f14981e5b5f5108cbd1")
-        self.assertEqual(jordan_map.pipeline_id, "642bb4345fa244099a78a50cede2d7d3")
+        self.assertEqual(alex_map.pipeline_id, "6d40244417034eb4bdae42218f820a85")
+        self.assertEqual(jordan_map.pipeline_id, "682bbf59d8914e97a983e40a3dab895a")
         self.assertNotEqual(alex_map.pipeline_id, jordan_map.pipeline_id)
 
         # Distinct TTS voices

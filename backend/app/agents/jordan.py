@@ -163,7 +163,7 @@ def get_jordan_agora_mapping() -> AgoraAgentMapping:
     return AgoraAgentMapping(
         project_id=project_id,
         pipeline_id=pipeline_id,
-        agent_rtc_uid=654509,
+        agent_rtc_uid=247504,
         asr_vendor="deepgram",
         asr_model="nova-3",
         asr_language="en",

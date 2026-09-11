@@ -128,7 +128,7 @@ def get_alex_agora_mapping() -> AgoraAgentMapping:
     return AgoraAgentMapping(
         project_id=project_id,
         pipeline_id=pipeline_id,
-        agent_rtc_uid=468707,
+        agent_rtc_uid=976535,
         asr_vendor="deepgram",
         asr_model="nova-3",
         asr_language="en",
