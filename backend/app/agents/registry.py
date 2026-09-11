@@ -7,6 +7,8 @@ import structlog
 
 from app.agents.alex import ALEX_PROFILE, get_alex_agora_mapping
 from app.agents.jordan import JORDAN_PROFILE, get_jordan_agora_mapping
+from app.agents.gd_mod import GD_MOD_PROFILE, get_gd_mod_agora_mapping
+from app.agents.role_play import ROLE_PLAY_PROFILE, get_role_play_agora_mapping
 from app.agents.models import AgentProfile, AgoraAgentMapping
 from app.core.exceptions import AgentNotFoundError, AgoraConfigurationError
 
@@ -25,7 +27,7 @@ class AgentRegistry:
             self._register_default_agents()
 
     def _register_default_agents(self) -> None:
-        """Register default built-in agents (e.g. Alex, Jordan)."""
+        """Register default built-in agents (e.g. Alex, Jordan, GD Mod, Role Play)."""
         self.register(
             profile=ALEX_PROFILE,
             agora_mapping=get_alex_agora_mapping,
@@ -33,6 +35,14 @@ class AgentRegistry:
         self.register(
             profile=JORDAN_PROFILE,
             agora_mapping=get_jordan_agora_mapping,
+        )
+        self.register(
+            profile=GD_MOD_PROFILE,
+            agora_mapping=get_gd_mod_agora_mapping,
+        )
+        self.register(
+            profile=ROLE_PLAY_PROFILE,
+            agora_mapping=get_role_play_agora_mapping,
         )
 
     def register(
